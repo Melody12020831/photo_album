@@ -1,0 +1,51 @@
+# docker-compose.yml
+# version: '3.8'
+
+services:
+  # 后端 Django 服务
+  backend:
+    build:
+      context: ./backend
+    container_name: photo_album_backend
+    command: python manage.py runserver 0.0.0.0:8000
+    volumes:
+      - ./backend:/app  # 将本地 backend 目录挂载到容器的 /app 目录，实现代码热更新
+    ports:
+      - "8000:8000"  # 将容器的 8000 端口映射到主机的 8000 端口
+    environment:
+      - DB_NAME=photo_album_db
+      - DB_USER=user
+      - DB_PASSWORD=password
+      - DB_HOST=db  # 关键：这里使用服务名 db 作为主机名
+      - DB_PORT=3306
+    depends_on:
+      - db  # 确保 backend 在 db 启动之后再启动
+
+  # 前端 Vue.js 服务
+  frontend:
+    build:
+      context: ./frontend
+    container_name: photo_album_frontend
+    command: npm run dev
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules  # 匿名卷，防止本地 node_modules 覆盖容器内的
+    ports:
+      - "5173:5173"  # Vite 默认的开发端口
+
+  # 数据库 MySQL 服务
+  db:
+    image: mysql:8.0
+    container_name: photo_album_db
+    environment:
+      MYSQL_DATABASE: photo_album_db
+      MYSQL_USER: user
+      MYSQL_PASSWORD: password
+      MYSQL_ROOT_PASSWORD: rootpassword
+    volumes:
+      - mysql_data:/var/lib/mysql  # 数据持久化
+    ports:
+      - "3307:3306" # 若需要用数据库客户端连接 Docker 里的这个数据库时，主机地址应填写 127.0.0.1，端口号则需要填写 3307。
+
+volumes:
+  mysql_data:
