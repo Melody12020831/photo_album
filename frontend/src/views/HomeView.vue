@@ -1,26 +1,11 @@
-<script setup>
-import TheWelcome from '../components/TheWelcome.vue'
-import { ref } from 'vue';
-import axios from 'axios';
-
-const message = ref('点击按钮');
-
-const fetchData = async () => {
-  try {
-    // Vite 代理会自动将这个请求转发到 http://backend:8000/api/test/
-    const response = await axios.get('/api/test/');
-    message.value = response.data.message;
-  } catch (error) {
-    console.error('获取数据失败:', error);
-    message.value = '获取数据失败!';
-  }
-};
-</script>
 
 <template>
-  <main>
-    <TheWelcome />
-    <h1>{{ message }}</h1>
-    <el-button type="primary" @click="fetchData">从后端获取数据</el-button>
+  <main style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 60vh;">
+    <h1 style="margin-bottom: 32px;">欢迎来到照片相册系统！</h1>
+    <div style="margin-top: 40px; display: flex; gap: 16px; justify-content: center;">
+      <el-button type="primary" @click="$router.push('/register')">注册</el-button>
+      <el-button type="success" @click="$router.push('/login')">登录</el-button>
+      <el-button type="info" @click="$router.push('/recover')">找回账号</el-button>
+    </div>
   </main>
 </template>
