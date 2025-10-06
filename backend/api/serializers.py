@@ -44,8 +44,82 @@ class LoginSerializer(serializers.Serializer):
 # 图片上传序列化器
 class PhotoSerializer(serializers.ModelSerializer):
     image = serializers.ImageField()
+    thumbnail = serializers.ImageField(read_only=True)
+    exif = serializers.JSONField(read_only=True)
+    tags = serializers.JSONField(read_only=True)
+    taken_at = serializers.DateTimeField(read_only=True)
+    location = serializers.CharField(read_only=True)
+    resolution = serializers.CharField(read_only=True)
 
     class Meta:
         model = Photo
-        fields = ['id', 'user', 'image', 'description', 'uploaded_at']
-        read_only_fields = ['id', 'user', 'uploaded_at']
+        fields = [
+            'id', 'user', 'image', 'thumbnail', 'description', 'uploaded_at',
+            'exif', 'tags', 'taken_at', 'location', 'resolution'
+        ]
+        read_only_fields = ['id', 'user', 'uploaded_at', 'thumbnail', 'exif', 'tags', 'taken_at', 'location', 'resolution']
+
+    def create(self, validated_data):
+        from .exif_utils import extract_exif, get_datetime_location, generate_thumbnail
+        image_file = validated_data['image']
+        # 读取EXIF
+        exif_data = None
+        taken_at = None
+        location = None
+        resolution = None
+        tags = []
+        try:
+            from io import BytesIO
+            from datetime import datetime
+            image_file.seek(0)
+            img_bytes = BytesIO(image_file.read())
+            exif_data = extract_exif(img_bytes)
+            # 拍摄时间、经纬度
+            dt, lat, lon = get_datetime_location(exif_data)
+            taken_at = None
+            if dt:
+                dt_str = str(dt)
+                tags.append(dt_str)  # 标签显示原始EXIF时间
+                for fmt in ("%Y:%m:%d %H:%M:%S", "%Y:%m:%d %H:%M", "%Y:%m:%d %H:%M:%S.%f"):
+                    try:
+                        taken_at = datetime.strptime(dt_str, fmt)
+                        break
+                    except Exception:
+                        continue
+            # 标签示例：相机品牌、型号
+            if lat and lon:
+                location = f"{lat},{lon}"
+            # 分辨率
+            from PIL import Image
+            img_bytes.seek(0)
+            img = Image.open(img_bytes)
+            resolution = f"{img.width}x{img.height}"
+            # 标签示例：相机品牌、型号
+            if 'Image Model' in exif_data:
+                tags.append(exif_data['Image Model'])
+            if 'Image Make' in exif_data:
+                tags.append(exif_data['Image Make'])
+        except Exception as e:
+            exif_data = {}
+        # 生成缩略图
+        thumb_file = None
+        try:
+            image_file.seek(0)
+            thumb_io = generate_thumbnail(image_file)
+            from django.core.files.base import ContentFile
+            thumb_file = ContentFile(thumb_io.read(), name=f"thumb_{image_file.name}")
+        except Exception as e:
+            thumb_file = None
+        photo = Photo.objects.create(
+            user=validated_data['user'],
+            image=validated_data['image'],
+            description=validated_data.get('description', ''),
+            exif=exif_data,
+            tags=tags,
+            taken_at=taken_at,
+            location=location,
+            resolution=resolution,
+        )
+        if thumb_file:
+            photo.thumbnail.save(thumb_file.name, thumb_file, save=True)
+        return photo

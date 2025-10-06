@@ -6,6 +6,12 @@ from django.contrib.auth.models import User
 class Photo(models.Model):
 	user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='photos')
 	image = models.ImageField(upload_to='photos/')
+	thumbnail = models.ImageField(upload_to='photos/thumbnails/', blank=True, null=True)
+	exif = models.JSONField(blank=True, null=True)
+	tags = models.JSONField(blank=True, null=True, help_text='自动标签')
+	taken_at = models.DateTimeField(blank=True, null=True, help_text='拍摄时间')
+	location = models.CharField(max_length=255, blank=True, null=True, help_text='拍摄地点')
+	resolution = models.CharField(max_length=32, blank=True, null=True, help_text='分辨率')
 	description = models.CharField(max_length=255, blank=True)
 	uploaded_at = models.DateTimeField(auto_now_add=True)
 

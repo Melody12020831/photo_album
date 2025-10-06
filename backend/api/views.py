@@ -66,7 +66,9 @@ class PhotoUploadView(APIView):
     def post(self, request):
         print('FILES:', request.FILES)
         print('DATA:', request.data)
-        serializer = PhotoSerializer(data=request.data, context={'request': request})
+        data = request.data.copy()
+        data['user'] = request.user.id
+        serializer = PhotoSerializer(data=data, context={'request': request})
         if serializer.is_valid():
             serializer.save(user=request.user)
             return Response({'msg': '图片上传成功', 'photo': serializer.data}, status=status.HTTP_201_CREATED)
