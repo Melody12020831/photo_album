@@ -2,13 +2,13 @@ import { fileURLToPath, URL } from 'node:url'
 
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
-import vueDevTools from 'vite-plugin-vue-devtools'
+// import vueDevTools from 'vite-plugin-vue-devtools'
 
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
     vue(),
-    vueDevTools(),
+    // vueDevTools(),
   ],
   resolve: {
     alias: {
@@ -22,6 +22,12 @@ export default defineConfig({
       '/api': {
         target: 'http://backend:8000', // 关键：指向后端容器
         changeOrigin: true,
+        secure: false,
+      },
+      '/media': {
+        target: 'http://backend:8000', // 新增：图片静态资源代理到后端
+        changeOrigin: true,
+        secure: false,
       }
     }
   }

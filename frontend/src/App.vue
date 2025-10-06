@@ -1,6 +1,15 @@
 
 <script setup>
 import { RouterLink, RouterView } from 'vue-router'
+import { ref, computed } from 'vue'
+
+const token = ref(localStorage.getItem('token'))
+const username = ref(localStorage.getItem('username'))
+
+window.addEventListener('storage', () => {
+  token.value = localStorage.getItem('token')
+  username.value = localStorage.getItem('username')
+})
 </script>
 
 <template>
@@ -10,8 +19,9 @@ import { RouterLink, RouterView } from 'vue-router'
       <RouterLink to="/">Home</RouterLink>
       <RouterLink to="/about">About</RouterLink>
       <RouterLink to="/register">注册</RouterLink>
-      <RouterLink to="/login">登录</RouterLink>
       <RouterLink to="/recover">找回账号</RouterLink>
+      <RouterLink v-if="!token" to="/login">登录</RouterLink>
+      <RouterLink v-else to="/profile">个人中心</RouterLink>
     </nav>
   </header>
   <RouterView />

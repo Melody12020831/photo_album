@@ -46,12 +46,17 @@ const onSubmit = () => {
     if (valid) {
       try {
         const res = await login(form.value)
-        localStorage.setItem('token', res.data.token)
+        // 兼容 res.data 或 res 结构
+        const data = res.data || res
+        localStorage.setItem('token', data.token)
+        if (data.username) localStorage.setItem('username', data.username)
+        if (data.email) localStorage.setItem('email', data.email)
+        window.dispatchEvent(new Event('storage')) // 通知App.vue刷新
         error.value = ''
         success.value = '登录成功，正在跳转...'
         setTimeout(() => {
-          router.push('/')
-        }, 1200)
+          router.push('/profile')
+        }, 1000)
       } catch (e) {
         let errMsg = '';
         if (e.response && e.response.data) {

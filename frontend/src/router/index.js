@@ -26,6 +26,21 @@ const router = createRouter({
       path: '/login',
       name: 'login',
       component: () => import('../views/LoginView.vue'),
+    },
+    {
+      path: '/upload',
+      name: 'upload',
+      component: () => import('../views/PhotoUploadView.vue'),
+    },
+    {
+      path: '/profile',
+      name: 'profile',
+      component: () => import('../views/ProfileView.vue'),
+    },
+    {
+      path: '/photos',
+      name: 'photos',
+      component: () => import('../views/PhotoWallView.vue'),
     }
     ,{
       path: '/recover',

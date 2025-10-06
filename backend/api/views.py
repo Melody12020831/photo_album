@@ -6,10 +6,12 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.authtoken.models import Token
-from .serializers import RegisterSerializer, LoginSerializer
+from .serializers import RegisterSerializer, LoginSerializer, PhotoSerializer
 from django.contrib.auth.models import User
 import re
 from django.db import IntegrityError
+from rest_framework.permissions import IsAuthenticated
+from .models import Photo
 
 class RegisterView(APIView):
     def post(self, request):
@@ -53,3 +55,47 @@ class RecoverAccountView(APIView):
             return Response({'username': user.username, 'msg': '找回成功，用户名已发送到邮箱（演示）'})
         except User.DoesNotExist:
             return Response({'detail': '该邮箱未注册'}, status=status.HTTP_404_NOT_FOUND)
+
+# 图片上传API（需登录）
+from rest_framework.parsers import MultiPartParser, FormParser
+
+class PhotoUploadView(APIView):
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request):
+        print('FILES:', request.FILES)
+        print('DATA:', request.data)
+        serializer = PhotoSerializer(data=request.data, context={'request': request})
+        if serializer.is_valid():
+            serializer.save(user=request.user)
+            return Response({'msg': '图片上传成功', 'photo': serializer.data}, status=status.HTTP_201_CREATED)
+        print('图片上传 serializer.errors:', serializer.errors)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+from rest_framework.generics import ListAPIView
+# 获取当前用户所有图片API（需登录）
+class PhotoListView(ListAPIView):
+    serializer_class = PhotoSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return Photo.objects.filter(user=self.request.user).order_by('-uploaded_at')
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        serializer = self.get_serializer(queryset, many=True)
+        return Response({'photos': serializer.data})
+
+    def get_serializer_context(self):
+        return {'request': self.request}
+
+# 删除图片API（需登录）
+from rest_framework.generics import DestroyAPIView
+
+class PhotoDeleteView(DestroyAPIView):
+    serializer_class = PhotoSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return Photo.objects.filter(user=self.request.user)
