@@ -1,6 +1,60 @@
 <template>
   <div class="photo-wall">
     <h2>我的照片墙</h2>
+    <el-form :inline="true" style="margin-bottom: 24px;" @submit.prevent="onSearch">
+      <el-form-item label="标签">
+        <el-input v-model="searchTags" placeholder="多个标签用逗号分隔" style="width: 200px;" />
+      </el-form-item>
+      <el-form-item label="上传日期">
+        <el-date-picker
+          v-model="searchUploadDateRange"
+          type="daterange"
+          range-separator="至"
+          start-placeholder="开始日期"
+          end-placeholder="结束日期"
+          style="width: 240px;"
+        />
+      </el-form-item>
+      <el-form-item label="拍摄日期">
+        <el-date-picker v-model="searchDate" type="date" placeholder="选择日期" style="width: 180px;" />
+      </el-form-item>
+      <el-form-item label="拍摄地点">
+        <el-input v-model="searchLocation" placeholder="如: 北京" style="width: 180px;" />
+      </el-form-item>
+      <el-form-item label="分辨率">
+        <el-select v-model="resolutionType" placeholder="选择类型" style="width: 120px;">
+          <el-option label="精确尺寸" value="size" />
+          <el-option label="宽高比" value="ratio" />
+          <el-option label="总像素" value="megapixel" />
+        </el-select>
+        <template v-if="resolutionType === 'size'">
+          <el-input v-model="searchResolution" placeholder="如: 4000x3000" style="width: 140px; margin-left: 8px;" />
+        </template>
+        <template v-else-if="resolutionType === 'ratio'">
+          <el-select v-model="searchRatio" placeholder="选择宽高比" style="width: 120px; margin-left: 8px;">
+            <el-option label="16:9" value="16:9" />
+            <el-option label="4:3" value="4:3" />
+            <el-option label="1:1" value="1:1" />
+            <el-option label="3:2" value="3:2" />
+            <el-option label="自定义" value="custom" />
+          </el-select>
+          <el-input v-if="searchRatio === 'custom'" v-model="searchRatioCustom" placeholder="自定义(如 5:4)" style="width: 100px; margin-left: 8px;" @input="onRatioCustomInput" />
+        </template>
+        <template v-else-if="resolutionType === 'megapixel'">
+          <el-select v-model="searchMegapixel" placeholder="选择总像素" style="width: 120px; margin-left: 8px;">
+            <el-option label=">5MP" value=">5" />
+            <el-option label=">12MP" value=">12" />
+            <el-option label=">24MP" value=">24" />
+            <el-option label="自定义" value="custom" />
+          </el-select>
+          <el-input v-if="searchMegapixel === 'custom'" v-model="searchMegapixelCustom" placeholder="自定义(如 >8)" style="width: 100px; margin-left: 8px;" @input="onMegapixelCustomInput" />
+        </template>
+      </el-form-item>
+      <el-form-item>
+        <el-button type="primary" @click="onSearch">筛选</el-button>
+        <el-button @click="onReset">重置</el-button>
+      </el-form-item>
+    </el-form>
     <el-row :gutter="16">
       <el-col v-for="photo in photos" :key="photo.id" :span="32" style="margin-bottom: 32px;">
         <el-card shadow="hover" style="min-height: 340px; min-width: 800px; padding-bottom: 16px;">
@@ -81,8 +135,25 @@ import axios from 'axios'
 import { deletePhoto } from '../api/photo'
 
 const photos = ref([])
+const searchTags = ref('')
+const searchUploadDateRange = ref(null)
+const searchDate = ref(null)
 const infoDialogVisible = ref(false)
 const currentPhoto = ref(null)
+const searchLocation = ref('')
+const searchResolution = ref('')
+const resolutionType = ref('size')
+const searchRatio = ref('')
+const searchRatioCustom = ref('')
+const searchMegapixel = ref('')
+const searchMegapixelCustom = ref('')
+function onRatioCustomInput(val) {
+  if (val) searchRatio.value = val
+}
+
+function onMegapixelCustomInput(val) {
+  if (val) searchMegapixel.value = val
+}
 
 function showInfo(photo) {
   currentPhoto.value = photo
@@ -134,17 +205,71 @@ function formatExifDate(exifDate) {
   return exifDate;
 }
 
-async function fetchPhotos() {
+async function fetchPhotos(params = {}) {
   const token = localStorage.getItem('token')
   if (!token) return
   try {
-    const res = await axios.get('/api/photos/', {
+    const query = Object.entries(params)
+      .filter(([key, value]) => value) // 过滤掉值为空的参数
+      .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+      .join('&');
+      
+    const url = `/api/photos/${query ? '?' + query : ''}`; // 动态构建 URL
+    
+    console.log('正在请求URL:', url); // 增加一个日志，方便调试
+
+    const res = await axios.get(url, {
       headers: { Authorization: `Token ${token}` }
     })
     photos.value = res.data.photos || []
   } catch (e) {
+    console.error('获取照片失败:', e); // 增加错误日志
     photos.value = []
   }
+}
+
+function formatDateParam(dateObj) {
+  if (!dateObj) return '';
+  // Element Plus 日期选择器返回 Date 对象
+  const yyyy = dateObj.getFullYear();
+  const mm = (dateObj.getMonth() + 1).toString().padStart(2, '0');
+  const dd = dateObj.getDate().toString().padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function onSearch() {
+  const params = {
+    tags: searchTags.value,
+    taken_date: searchDate.value ? formatDateParam(searchDate.value) : '',
+    location: searchLocation.value
+  }
+  if (searchUploadDateRange.value && searchUploadDateRange.value.length === 2) {
+    params.upload_date_start = formatDateParam(searchUploadDateRange.value[0]);
+    params.upload_date_end = formatDateParam(searchUploadDateRange.value[1]);
+  }
+  if (resolutionType.value === 'size') {
+    params.resolution = searchResolution.value
+  } else if (resolutionType.value === 'ratio') {
+    params.ratio = searchRatio.value === 'custom' ? searchRatioCustom.value : searchRatio.value
+  } else if (resolutionType.value === 'megapixel') {
+    params.megapixel = searchMegapixel.value === 'custom' ? searchMegapixelCustom.value : searchMegapixel.value
+  }
+  console.log('筛选参数:', params)
+  fetchPhotos(params)
+}
+
+function onReset() {
+  searchTags.value = ''
+  searchUploadDateRange.value = null
+  searchDate.value = null
+  searchLocation.value = ''
+  searchResolution.value = ''
+  resolutionType.value = 'size'
+  searchRatio.value = ''
+  searchRatioCustom.value = ''
+  searchMegapixel.value = ''
+  searchMegapixelCustom.value = ''
+  fetchPhotos()
 }
 
 async function onDelete(photoId) {

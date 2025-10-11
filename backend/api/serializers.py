@@ -62,7 +62,6 @@ class PhotoSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         from .exif_utils import extract_exif, get_datetime_location, generate_thumbnail
         image_file = validated_data['image']
-        # 读取EXIF
         exif_data = None
         taken_at = None
         location = None
@@ -74,42 +73,38 @@ class PhotoSerializer(serializers.ModelSerializer):
             image_file.seek(0)
             img_bytes = BytesIO(image_file.read())
             exif_data = extract_exif(img_bytes)
-            # 拍摄时间、经纬度
             dt, lat, lon = get_datetime_location(exif_data)
-            taken_at = None
             if dt:
                 dt_str = str(dt)
-                tags.append(dt_str)  # 标签显示原始EXIF时间
+                tags.append(dt_str)
+                # 只要 EXIF 有拍摄时间就写入 taken_at
                 for fmt in ("%Y:%m:%d %H:%M:%S", "%Y:%m:%d %H:%M", "%Y:%m:%d %H:%M:%S.%f"):
                     try:
                         taken_at = datetime.strptime(dt_str, fmt)
                         break
                     except Exception:
                         continue
-            # 标签示例：相机品牌、型号
             if lat and lon:
                 location = f"{lat},{lon}"
-            # 分辨率
             from PIL import Image
             img_bytes.seek(0)
             img = Image.open(img_bytes)
             resolution = f"{img.width}x{img.height}"
-            # 标签示例：相机品牌、型号
             if 'Image Model' in exif_data:
                 tags.append(exif_data['Image Model'])
             if 'Image Make' in exif_data:
                 tags.append(exif_data['Image Make'])
-        except Exception as e:
+        except Exception:
             exif_data = {}
-        # 生成缩略图
         thumb_file = None
         try:
             image_file.seek(0)
             thumb_io = generate_thumbnail(image_file)
             from django.core.files.base import ContentFile
             thumb_file = ContentFile(thumb_io.read(), name=f"thumb_{image_file.name}")
-        except Exception as e:
+        except Exception:
             thumb_file = None
+        # 保证 taken_at 字段有值（有 EXIF 就填，无则为 None）
         photo = Photo.objects.create(
             user=validated_data['user'],
             image=validated_data['image'],

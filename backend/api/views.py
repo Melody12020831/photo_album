@@ -76,13 +76,72 @@ class PhotoUploadView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
 from rest_framework.generics import ListAPIView
+from django.db.models.functions import TruncDate
 # 获取当前用户所有图片API（需登录）
 class PhotoListView(ListAPIView):
     serializer_class = PhotoSerializer
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return Photo.objects.filter(user=self.request.user).order_by('-uploaded_at')
+        queryset = Photo.objects.filter(user=self.request.user)
+        
+        tags = self.request.query_params.get('tags')
+        upload_date_start = self.request.query_params.get('upload_date_start')
+        upload_date_end = self.request.query_params.get('upload_date_end')
+        taken_date = self.request.query_params.get('taken_date')
+        location = self.request.query_params.get('location')
+        resolution = self.request.query_params.get('resolution')
+        ratio = self.request.query_params.get('ratio')
+        megapixel_str = self.request.query_params.get('megapixel')
+
+        if tags:
+            tag_list = [t.strip() for t in tags.split(',') if t.strip()]
+            queryset = queryset.filter(tags__contains=tag_list)
+        if upload_date_start:
+            queryset = queryset.filter(uploaded_at__date__gte=upload_date_start)
+        if upload_date_end:
+            queryset = queryset.filter(uploaded_at__date__lte=upload_date_end)
+        if taken_date:
+            queryset = queryset.filter(taken_at__date=taken_date)
+        if location:
+            queryset = queryset.filter(location__icontains=location)
+        if resolution:
+            queryset = queryset.filter(resolution__iexact=resolution)
+
+        queryset = queryset.order_by('-uploaded_at')
+
+        final_results = list(queryset)
+
+        if ratio:
+            from math import gcd
+            def match_ratio(res):
+                try:
+                    w, h = [int(x) for x in res.split('x')]
+                    if h == 0: return False
+                    common_divisor = gcd(w, h)
+                    r = f"{w//common_divisor}:{h//common_divisor}"
+                    return r == ratio
+                except (ValueError, IndexError, TypeError):
+                    return False
+            final_results = [p for p in final_results if p.resolution and match_ratio(p.resolution)]
+
+        if megapixel_str:
+            try:
+                megapixel_gt = float(''.join(filter(str.isdigit, megapixel_str)))
+            except ValueError:
+                megapixel_gt = 0
+                
+            if megapixel_gt > 0:
+                def match_mp(res):
+                    try:
+                        w, h = [int(x) for x in res.split('x')]
+                        mp = (w * h) / 1_000_000
+                        return mp > megapixel_gt
+                    except (ValueError, IndexError, TypeError):
+                        return False
+                final_results = [p for p in final_results if p.resolution and match_mp(p.resolution)]
+        
+        return final_results
 
     def list(self, request, *args, **kwargs):
         queryset = self.get_queryset()
