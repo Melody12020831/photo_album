@@ -3,7 +3,10 @@
     <h2>我的照片墙</h2>
     <el-form :inline="true" style="margin-bottom: 24px;" @submit.prevent="onSearch">
       <el-form-item label="标签">
-        <el-input v-model="searchTags" placeholder="多个标签用逗号分隔" style="width: 200px;" />
+        <el-select v-model="searchTags" multiple filterable placeholder="请选择标签进行检索" style="width: 240px;" > <el-option v-for="tag in allUserTags" :key="tag" :label="tag" :value="tag" /> </el-select>
+      </el-form-item>
+      <el-form-item label="描述">
+        <el-input v-model="searchDescription" placeholder="图片描述关键词" style="width: 200px;" />
       </el-form-item>
       <el-form-item label="上传日期">
         <el-date-picker
@@ -67,6 +70,7 @@
           <div style="margin-top: 8px; text-align: right; display: flex; gap: 8px; justify-content: flex-end;">
             <el-button type="primary" size="small" @click="showInfo(photo)">查看信息</el-button>
             <el-button type="success" size="small" @click="showThumb(photo)">查看缩略图</el-button>
+            <el-button type="warning" size="small" @click="openEditDialog(photo)">编辑标签和描述</el-button>
             <el-button type="danger" size="small" @click="onDelete(photo.id)">删除</el-button>
           </div>
         </el-card>
@@ -112,6 +116,36 @@
       </template>
     </el-dialog>
 
+    <el-dialog v-model="editDialogVisible" title="编辑图片信息" width="500px">
+      <el-form v-if="editingPhoto" :model="editForm" label-width="80px">
+        <el-form-item label="描述">
+          <el-input v-model="editForm.description" type="textarea" :rows="3" />
+        </el-form-item>
+        <el-form-item label="标签">
+          <el-select
+            v-model="editForm.tags"
+            multiple
+            filterable
+            allow-create
+            default-first-option
+            placeholder="选择或创建新标签"
+            style="width: 100%"
+          >
+            <el-option
+              v-for="tag in allUserTags"
+              :key="tag"
+              :label="tag"
+              :value="tag"
+            />
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="editDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="savePhotoChanges" :loading="editLoading">保存</el-button>
+      </template>
+    </el-dialog>
+
     <el-empty v-if="photos.length === 0" description="暂无照片" />
   </div>
 </template>
@@ -132,10 +166,12 @@ function showThumb(photo) {
 }
 import { ref, onMounted } from 'vue'
 import axios from 'axios'
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { deletePhoto } from '../api/photo'
 
 const photos = ref([])
-const searchTags = ref('')
+const searchTags = ref([])
+const searchDescription = ref('')
 const searchUploadDateRange = ref(null)
 const searchDate = ref(null)
 const infoDialogVisible = ref(false)
@@ -147,6 +183,71 @@ const searchRatio = ref('')
 const searchRatioCustom = ref('')
 const searchMegapixel = ref('')
 const searchMegapixelCustom = ref('')
+const editDialogVisible = ref(false);
+const editLoading = ref(false);
+const editingPhoto = ref(null);
+const editForm = ref({
+  description: '',
+  tags: []
+});
+const allUserTags = ref([]); // 存储用户的所有标签
+
+// --- 新增：打开编辑弹窗的逻辑 ---
+function openEditDialog(photo) {
+  editingPhoto.value = photo;
+  editForm.value.description = photo.description || '';
+  editForm.value.tags = [...(photo.tags || [])]; // 使用展开运算符创建副本
+  editDialogVisible.value = true;
+}
+
+// --- 新增：获取所有用户标签的函数 ---
+async function fetchAllUserTags() {
+  const token = localStorage.getItem('token');
+  if (!token) return;
+  try {
+    const res = await axios.get('/api/user_tags/', {
+      headers: { Authorization: `Token ${token}` }
+    });
+    allUserTags.value = res.data.tags || [];
+  } catch (e) {
+    console.error('获取用户标签失败:', e);
+  }
+}
+
+// --- 新增：保存修改的逻辑 ---
+async function savePhotoChanges() {
+  if (!editingPhoto.value) return;
+  editLoading.value = true;
+  const token = localStorage.getItem('token');
+  try {
+    const url = `/api/photos/${editingPhoto.value.id}/update/`;
+    const payload = {
+      description: editForm.value.description,
+      tags: editForm.value.tags
+    };
+    // 使用 PATCH 请求
+    const res = await axios.patch(url, payload, {
+      headers: { Authorization: `Token ${token}` }
+    });
+
+    // 实时更新前端列表中的数据，无需重新请求
+    const index = photos.value.findIndex(p => p.id === editingPhoto.value.id);
+    if (index !== -1) {
+      photos.value[index].description = res.data.description;
+      photos.value[index].tags = res.data.tags;
+    }
+
+    ElMessage.success('更新成功');
+    editDialogVisible.value = false;
+  } catch (e) {
+    const errorMsg = e.response?.data ? JSON.stringify(e.response.data) : '更新失败';
+    ElMessage.error(errorMsg);
+  } finally {
+    editLoading.value = false;
+  }
+}
+
+
 function onRatioCustomInput(val) {
   if (val) searchRatio.value = val
 }
@@ -239,7 +340,9 @@ function formatDateParam(dateObj) {
 
 function onSearch() {
   const params = {
-    tags: searchTags.value,
+    // 将数组用逗号连接成字符串以匹配后端API
+    tags: searchTags.value.join(','), 
+    description: searchDescription.value,
     taken_date: searchDate.value ? formatDateParam(searchDate.value) : '',
     location: searchLocation.value
   }
@@ -259,7 +362,8 @@ function onSearch() {
 }
 
 function onReset() {
-  searchTags.value = ''
+  searchTags.value = []
+  searchDescription.value = ''
   searchUploadDateRange.value = null
   searchDate.value = null
   searchLocation.value = ''
@@ -284,7 +388,11 @@ async function onDelete(photoId) {
   }
 }
 
-onMounted(fetchPhotos)
+onMounted(() => {
+    fetchPhotos();
+    fetchAllUserTags(); // 页面加载时就获取所有标签
+});
+
 </script>
 
 <style scoped>

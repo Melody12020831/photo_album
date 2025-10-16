@@ -9,6 +9,7 @@
       <el-button type="warning" @click="$router.push('/upload')">上传图片</el-button>
       <el-button type="default" @click="goProfile">个人中心</el-button>
       <el-button type="primary" @click="$router.push('/photos')">我的照片墙</el-button>
+      <el-button type="success" @click="$router.push('/tags')">标签管理</el-button>
     </div>
   </main>
 </template>
