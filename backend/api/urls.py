@@ -2,7 +2,10 @@ from django.urls import path
 from .views import (
     RegisterView, LoginView, RecoverAccountView, 
     PhotoUploadView, PhotoListView, PhotoDeleteView, UserTagView,
-    PhotoUpdateView
+    PhotoUpdateView,
+    PhotoEditView,
+    update_photo_tags,
+    AnalyzeTagsView
 )
 
 urlpatterns = [
@@ -13,5 +16,8 @@ urlpatterns = [
     path('photos/', PhotoListView.as_view(), name='photo_list'),
     path('photos/<int:pk>/', PhotoDeleteView.as_view(), name='photo_delete'),
     path('photos/<int:pk>/update/', PhotoUpdateView.as_view(), name='photo_update'),
+    path('photos/<int:pk>/edit-image/', PhotoEditView.as_view(), name='photo_edit_image'),
+    path('photos/<int:pk>/analyze-tags/', AnalyzeTagsView.as_view(), name='photo_analyze_tags'),
     path('user_tags/', UserTagView.as_view(), name='user_tags'),
+    path('update_photo_tags/', update_photo_tags, name='update_photo_tags'),
 ]

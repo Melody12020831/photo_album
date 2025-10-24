@@ -13,6 +13,38 @@ from django.db import IntegrityError
 from rest_framework.permissions import IsAuthenticated
 from .models import Photo
 from .models import UserTag
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+import os
+import threading
+import json
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def update_photo_tags(request):
+    """
+    更新指定图片的标签
+    """
+    user = request.user
+    photo_id = request.data.get('photo_id')
+    tags_list = request.data.get('tags', [])
+    if not photo_id or not isinstance(tags_list, list):
+        return Response({'error': '参数错误'}, status=400)
+    
+    try:
+        photo = Photo.objects.get(id=photo_id, user=user)
+    except Photo.DoesNotExist:
+        return Response({'error': '图片不存在或无权限'}, status=404)
+
+    photo.tags = tags_list
+    for tag_name in tags_list:
+        UserTag.objects.get_or_create(user=user, tag=tag_name)
+
+    photo.save()
+    # 返回更新后的标签列表
+    serializer = PhotoSerializer(photo, context={'request': request})
+    return Response({'msg': '标签已更新', 'photo': serializer.data})
+
 from rest_framework.generics import UpdateAPIView
 
 class RegisterView(APIView):
@@ -61,6 +93,65 @@ class RecoverAccountView(APIView):
 # 图片上传API（需登录）
 from rest_framework.parsers import MultiPartParser, FormParser
 
+import threading
+from openai import OpenAI
+
+def analyze_image_tags(image_url, model="doubao-1.5-vision-lite-250315", api_key=None, base_url=None):
+    """
+    调用AI模型分析图片标签。
+    返回一个标签列表 (list of strings)。
+    如果失败，则抛出异常。
+    """
+    if not api_key:
+        raise ValueError("API key is missing.")
+        
+    client = OpenAI(api_key=api_key, base_url=base_url)
+    
+    prompt = "请仔细分析这张图片的内容，返回5到10个最相关的描述性中文标签（例如：风景, 人物, 建筑, 天空, 海滩）。请只返回用英文逗号(,)分隔的标签字符串，不要包含任何其他说明性文字。"
+    
+    response = client.chat.completions.create(
+        model=model,
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {"type": "image_url", "image_url": {"url": image_url}},
+                    {"type": "text", "text": prompt},
+                ],
+            }
+        ],
+        max_tokens=100, # 限制返回长度
+        temperature=0.3, # 降低随机性，使其返回更固定的标签
+    )
+
+    if not response.choices:
+        raise ValueError("AI model returned no response.")
+
+    content = response.choices[0].message.content
+    
+    if not content:
+        return []
+
+    # 简单的清洗和解析
+    # 移除可能的 markdown 符号或引号
+    content = content.strip().strip("`").strip("'").strip('"')
+    
+    # AI有时可能返回 "标签：风景,人物" 或 "风景, 人物"
+    # 我们只取冒号（中文或英文）后面的部分
+    if '：' in content:
+        content = content.split('：', 1)[-1]
+    if ':' in content:
+        content = content.split(':', 1)[-1]
+
+    # 按逗号（中文或英文）分割，并去除空白
+    tags_list = []
+    for t in re.split(r'[,\uff0c]', content): # 同时按英文和中文逗号分割
+        cleaned_tag = t.strip()
+        if cleaned_tag:
+            tags_list.append(cleaned_tag)
+            
+    return tags_list
+
 class PhotoUploadView(APIView):
     permission_classes = [IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser]
@@ -70,20 +161,121 @@ class PhotoUploadView(APIView):
         print('DATA:', request.data)
         data = request.data.copy()
         data['user'] = request.user.id
+        
         serializer = PhotoSerializer(data=data, context={'request': request})
+        
         if serializer.is_valid():
             photo = serializer.save(user=request.user)
-            # 从验证后的数据中获取干净的标签列表
-            validated_tags = serializer.validated_data.get('tags', [])
-            if validated_tags:
-                UserTag.objects.bulk_create([
-                    UserTag(user=request.user, tag=tag)
-                    for tag in validated_tags
-                    if not UserTag.objects.filter(user=request.user, tag=tag).exists()
-                ], ignore_conflicts=True)
-            return Response({'msg': '图片上传成功', 'photo': serializer.data}, status=status.HTTP_201_CREATED)
+
+            # 上传成功后，直接返回图片信息。
+            # 前端接收到这个响应后，应弹窗询问用户是否进行AI分析。
+            return Response({
+                'msg': '图片上传成功',
+                'photo': serializer.data,
+            }, status=status.HTTP_201_CREATED)
+            
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
+
+# (新增) AI分析触发API
+class AnalyzeTagsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk=None):
+        """
+        触发对指定照片的AI标签分析。
+        前端在用户同意分析后调用此接口。
+        """
+        try:
+            photo = Photo.objects.get(pk=pk, user=request.user)
+        except Photo.DoesNotExist:
+            return Response({'error': '照片不存在或无权访问'}, status=status.HTTP_404_NOT_FOUND)
+
+        if not photo.image or not hasattr(photo.image, 'url'):
+            return Response({'error': '照片文件不存在URL'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # 从环境变量获取正确的 Key
+        api_key = "85fa8223-1fb5-4f2e-bbe5-90f8d1898c0f" 
+        # api_key = os.environ.get("DOUBAO_API_KEY") 
+        if not api_key:
+            print("错误：DOUBAO_API_KEY 环境变量未设置。")
+            return Response({'error': 'AI服务配置错误'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        base_url = "https://ark.cn-beijing.volces.com/api/v3"
+        image_url = request.build_absolute_uri(photo.image.url) # 确保是绝对路径
+
+        try:
+            # 调试日志：打印 Django 认为的路径
+            print(f"[DEBUG] 尝试读取文件。MEDIA_ROOT: {settings.MEDIA_ROOT}")
+            print(f"[DEBUG] 数据库中的文件名 (photo.image.name): {photo.image.name}")
+            print(f"[DEBUG] 尝试打开的绝对路径 (photo.image.path): {photo.image.path}")
+            
+            # 1. 检查文件是否存在
+            if not photo.image.storage.exists(photo.image.name):
+                print(f"[DEBUG] 错误：photo.image.storage.exists() 返回 False")
+                return Response({'error': '图片文件在存储中不存在'}, status=status.HTTP_404_NOT_FOUND)
+
+            # 2. 读取图片文件的原始字节
+            print("[DEBUG] 文件存在，尝试打开...")
+            with photo.image.open('rb') as f:
+                image_bytes = f.read()
+            print("[DEBUG] 文件读取成功。")
+            
+            # 3. 将字节编码为 Base64 字符串
+            base64_data = base64.b64encode(image_bytes).decode('utf-8')
+            
+            # 4. 猜测文件的 MIME 类型 (例如 'image/png' 或 'image/jpeg')
+            mime_type, _ = mimetypes.guess_type(photo.image.name)
+            if not mime_type:
+                mime_type = 'image/png' # 如果猜不到，给一个默认值
+            
+            # 5. 创建 Base64 Data URL
+            image_data_url = f"data:{mime_type};base64,{base64_data}"
+            print("[DEBUG] Base64 编码成功。")
+
+        except Exception as e:
+            print("="*50)
+            print(f"[!!! 严重错误 !!!] 读取或编码图片文件失败:")
+            print(f"MEDIA_ROOT: {settings.MEDIA_ROOT}")
+            print(f"尝试读取的 photo.image.name: {photo.image.name}")
+            try:
+                print(f"尝试读取的 photo.image.path: {photo.image.path}")
+            except Exception as pe:
+                print(f"获取 photo.image.path 时也出错: {pe}")
+            print(f"Python 异常类型: {type(e).__name__}")
+            print(f"Python 异常信息: {e}")
+            print("="*50)
+            
+            return Response({'error': '服务器读取图片文件失败，请检查后端日志'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        try:
+            # 同步调用AI分析，因为前端正在等待这个结果
+            suggested_tags = analyze_image_tags(
+                image_url=image_data_url, # <--- 传递 Base64 data URL
+                api_key=api_key, 
+                base_url=base_url
+            )
+            
+            if not suggested_tags:
+                return Response({
+                    'msg': 'AI未分析出任何标签',
+                    'suggested_tags': []
+                }, status=status.HTTP_200_OK)
+
+            # 成功返回建议的标签列表
+            return Response({
+                'msg': 'AI分析完成',
+                'suggested_tags': suggested_tags
+            }, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            print(f"AI分析失败: {e}")
+            # 向前端返回一个通用错误
+            return Response({'error': f'AI分析失败: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        except Exception as e:
+            print(f"AI分析失败: {e}")
+            # 向前端返回一个通用错误
+            return Response({'error': f'AI分析失败: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 class PhotoUpdateView(UpdateAPIView):
     serializer_class = PhotoUpdateSerializer
     permission_classes = [IsAuthenticated]
@@ -135,19 +327,6 @@ class UserTagView(APIView):
         UserTag.objects.filter(user=request.user, tag=tag).delete()
         return Response({'msg': '标签删除成功'})
     
-    def post(self, request):
-        tag_name = request.data.get('tag', '').strip()
-        if not tag_name:
-            return Response({'error': '标签名不能为空'}, status=status.HTTP_400_BAD_REQUEST)
-        
-        # 使用 get_or_create 避免重复，并返回创建状态
-        tag, created = UserTag.objects.get_or_create(user=request.user, tag=tag_name)
-        
-        if created:
-            return Response({'tag': tag.tag, 'msg': '标签创建成功'}, status=status.HTTP_201_CREATED)
-        else:
-            return Response({'tag': tag.tag, 'msg': '标签已存在'}, status=status.HTTP_200_OK)
-    
 from rest_framework.generics import ListAPIView
 from django.db.models.functions import TruncDate
 
@@ -166,8 +345,8 @@ class PhotoListView(ListAPIView):
             tag_list = [t.strip() for t in tags.split(',') if t.strip()]
             q_obj = Q()
             for tag in tag_list:
-                q_obj |= Q(tags__contains=[tag])
-            queryset = queryset.filter(q_obj)
+                q_obj |= Q(tags__contains=tag)
+            queryset = queryset.filter(q_obj).distinct()
         if description:
             queryset = queryset.filter(description__icontains=description)
             
@@ -242,3 +421,41 @@ class PhotoDeleteView(DestroyAPIView):
 
     def get_queryset(self):
         return Photo.objects.filter(user=self.request.user)
+    
+from django.core.files.base import ContentFile
+import os
+from django.conf import settings
+import base64
+import mimetypes
+
+class PhotoEditView(APIView):
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request, pk=None):
+        try:
+            # 确保用户只能修改自己的照片
+            photo = Photo.objects.get(pk=pk, user=request.user)
+        except Photo.DoesNotExist:
+            return Response({'error': '照片不存在或无权修改'}, status=status.HTTP_404_NOT_FOUND)
+
+        new_image = request.FILES.get('image')
+        if not new_image:
+            return Response({'error': '未提供新的图片文件'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # 1. 删除旧的物理文件
+        if photo.image and hasattr(photo.image, 'path'):
+            old_path = photo.image.path
+            if os.path.isfile(old_path):
+                os.remove(old_path)
+        
+        # 2. 保存新文件
+        # Django 会自动处理文件名冲突并保存到 MEDIA_ROOT 下的 upload_to 目录
+        photo.image.save(new_image.name, new_image, save=True)
+
+        # 3. （可选）更新其他元数据，比如分辨率
+        #    如果需要，可以在这里重新用 Pillow 读取新图片并更新 photo.resolution 字段
+        
+        # 4. 返回包含新图片 URL 的响应
+        serializer = PhotoSerializer(photo, context={'request': request})
+        return Response(serializer.data, status=status.HTTP_200_OK)
