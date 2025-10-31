@@ -1,3 +1,93 @@
+from django.utils import timezone
+from datetime import datetime
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated, AllowAny
+import requests
+
+# MCP智能搜索API
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def mcp_search(request):
+    """
+    POST /api/search/mcp
+    {"query": "去年夏天在海边拍的照片"}
+    """
+    user = request.user
+    query = request.data.get('query', '').strip()
+    if not query:
+        return Response({'error': '请输入搜索内容'}, status=400)
+
+    # 构造System Prompt
+    today = timezone.now().date().isoformat()
+    system_prompt = f"""
+你是一个智能相册助手。你的任务是将用户的自然语言查询转换为一个严格的 JSON 对象，用于数据库检索。
+今天是{today}。
+你必须返回以下格式的 JSON，字段不存在时返回 null：{{"tags": ["string"], "date_from": "YYYY-MM-DD", "date_to": "YYYY-MM-DD", "keywords": ["string"]}}
+字段映射规则：
+- tags: 从查询中提取的物体、场景、人物等名词标签 (如 "狗", "海滩", "公园")。
+- date_from / date_to: 从查询中提取的时间范围 (如 "去年夏天" -> {{"date_from": "2024-06-01", "date_to": "2024-08-31"}}；"上周" -> ...)。
+- keywords: 描述性的词语，用于模糊搜索图片描述字段 (如 "开心", "模糊")。
+只返回JSON，不要任何解释。
+"""
+
+    # 使用豆包模型（OpenAI客户端）进行自然语言解析
+    from openai import OpenAI
+    api_key = "85fa8223-1fb5-4f2e-bbe5-90f8d1898c0f"  # 可改为 os.environ.get("DOUBAO_API_KEY")
+    base_url = "https://ark.cn-beijing.volces.com/api/v3"
+    model = "doubao-1.5-vision-lite-250315"  # 文本推理也可用此模型
+    try:
+        client = OpenAI(api_key=api_key, base_url=base_url)
+        response = client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "user", "content": [
+                    {"type": "text", "text": system_prompt + "\n" + query}
+                ]}
+            ],
+            max_tokens=300,
+            temperature=0.2,
+        )
+        if not response.choices:
+            raise ValueError("AI model returned no response.")
+        llm_text = response.choices[0].message.content.strip()
+    except Exception as e:
+        return Response({'error': '智能助手暂时不可用，请稍后再试'}, status=503)
+
+    # 解析LLM返回的JSON
+    try:
+        result = json.loads(llm_text)
+        tags = result.get('tags') or []
+        date_from = result.get('date_from')
+        date_to = result.get('date_to')
+        keywords = result.get('keywords') or []
+    except Exception:
+        return Response({'error': '智能助手暂时无法理解，请换个说法'}, status=200)
+
+    # 构建数据库查询
+    photos = Photo.objects.filter(user=user)
+    if tags:
+        for tag in tags:
+            photos = photos.filter(tags__contains=[tag])
+    if date_from:
+        try:
+            date_from_obj = datetime.strptime(date_from, '%Y-%m-%d')
+            photos = photos.filter(taken_at__gte=date_from_obj)
+        except Exception:
+            pass
+    if date_to:
+        try:
+            date_to_obj = datetime.strptime(date_to, '%Y-%m-%d')
+            photos = photos.filter(taken_at__lte=date_to_obj)
+        except Exception:
+            pass
+    if keywords:
+        for kw in keywords:
+            photos = photos.filter(description__icontains=kw)
+
+    photos = photos.order_by('-uploaded_at')
+    serializer = PhotoSerializer(photos, many=True, context={'request': request})
+    return Response({'photos': serializer.data})
+
 from django.shortcuts import render
 
 # Create your views here.

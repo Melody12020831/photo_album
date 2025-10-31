@@ -5,7 +5,8 @@ from .views import (
     PhotoUpdateView,
     PhotoEditView,
     update_photo_tags,
-    AnalyzeTagsView
+    AnalyzeTagsView,
+    mcp_search
 )
 
 urlpatterns = [
@@ -20,4 +21,5 @@ urlpatterns = [
     path('photos/<int:pk>/analyze-tags/', AnalyzeTagsView.as_view(), name='photo_analyze_tags'),
     path('user_tags/', UserTagView.as_view(), name='user_tags'),
     path('update_photo_tags/', update_photo_tags, name='update_photo_tags'),
+    path('search/mcp', mcp_search, name='mcp_search'),
 ]

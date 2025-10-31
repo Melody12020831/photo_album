@@ -58,10 +58,35 @@
         <el-button @click="onReset">重置</el-button>
       </el-form-item>
     </el-form>
+    <div style="margin-bottom: 16px; display: flex; gap: 12px; align-items: center;">
+      <el-button type="success" @click="enterSelectMode" :disabled="photos.length === 0">轮播播放</el-button>
+      <el-button type="primary" @click="openSmartSearchDialog" style="margin-left: 0;">智能搜索</el-button>
+      <span v-if="selectMode && selectedPhotoIds.length">已选中 {{ selectedPhotoIds.length }} 张</span>
+      <el-button v-if="selectMode" type="primary" @click="confirmBatchSelect" style="margin-left: auto;">选择完毕</el-button>
+      <el-button v-if="selectMode" @click="exitSelectMode" style="margin-left: 0;">取消</el-button>
+    </div>
+    <!-- 智能搜索对话框 -->
+    <el-dialog v-model="smartSearchDialogVisible" title="智能搜索" width="500px" :close-on-click-modal="false">
+      <template #default>
+        <div>
+          <el-input type="textarea" v-model="smartSearchInput" :rows="3" placeholder="请输入自然语言描述，如：去年夏天在海边拍的照片" />
+        </div>
+      </template>
+      <template #footer>
+        <el-button @click="smartSearchDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="smartSearchLoading" @click="submitSmartSearch">搜索</el-button>
+      </template>
+    </el-dialog>
     <el-row :gutter="16">
-      <el-col v-for="photo in photos" :key="photo.id" :span="32" style="margin-bottom: 32px;">
-        <el-card shadow="hover" style="min-height: 340px; min-width: 800px; padding-bottom: 16px;">
-          <img :src="fixImageUrl(photo.image)" alt="photo" style="width: 100%; max-height: 200px; object-fit: cover;" />
+      <el-col v-for="(photo, idx) in photos" :key="photo.id" :span="32" style="margin-bottom: 32px;">
+        <el-card shadow="hover" style="min-height: 340px; min-width: 800px; padding-bottom: 16px; position: relative;">
+          <div v-if="selectMode" class="photo-select-check" @click.stop="toggleSelectPhoto(photo.id)">
+            <span v-if="selectedPhotoIds.includes(photo.id)" class="photo-check-mark">✔</span>
+          </div>
+          <img :src="fixImageUrl(photo.thumbnail || photo.image)" alt="photo"
+            style="width: 100%; max-height: 200px; object-fit: cover; cursor: pointer;"
+            @click="selectMode ? toggleSelectPhoto(photo.id) : openPreview(idx)"
+          />
           <div style="margin-top: 8px;">
             <span>{{ photo.description || '无描述' }}</span>
             <br />
@@ -77,6 +102,58 @@
         </el-card>
       </el-col>
     </el-row>
+    <!-- 其余内容... -->
+
+<!-- 样式标签移到文件末尾 -->
+    <!-- 集合轮播模态框 -->
+    <el-dialog v-model="batchCarouselVisible" title="图片集合轮播" width="900px" :close-on-click-modal="false">
+      <template #default>
+        <div ref="batchCarouselWrapper" @wheel="handleBatchCarouselWheel">
+          <el-carousel ref="batchCarouselRef" height="500px" arrow="always" :autoplay="true">
+            <el-carousel-item v-for="photo in batchCarouselPhotos" :key="photo.id">
+              <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%;">
+                <img :src="fixImageUrl(photo.image)" alt="原图" style="max-height: 400px; border-radius: 8px; box-shadow: 0 2px 24px #000a;" />
+                <div style="color: #333; margin-top: 16px; text-align: center;">
+                  <h4>{{ photo.description || '无描述' }}</h4>
+                  <p><b>拍摄时间：</b>{{ photo.taken_at ? formatTakenAt(photo.taken_at) : (photo.exif?.['EXIF DateTimeOriginal'] ? formatExifDate(photo.exif['EXIF DateTimeOriginal']) : '无') }}</p>
+                  <p><b>标签：</b>
+                    <span v-if="photo.tags && photo.tags.length">{{ photo.tags.join(', ') }}</span>
+                    <span v-else>无</span>
+                  </p>
+                </div>
+              </div>
+            </el-carousel-item>
+          </el-carousel>
+        </div>
+      </template>
+      <template #footer>
+        <el-button @click="batchCarouselVisible = false">关闭</el-button>
+      </template>
+    </el-dialog>
+    <!-- 全屏图片预览模态框 -->
+    <el-dialog v-model="previewDialogVisible" fullscreen custom-class="photo-preview-dialog" :show-close="false">
+      <template #default>
+        <div class="photo-preview-wrapper"
+          @touchstart="onTouchStart"
+          @touchmove="onTouchMove"
+        >
+          <img :src="fixImageUrl(currentPreviewPhoto?.image)" alt="原图" class="photo-preview-img" />
+          <div class="photo-preview-info">
+            <h3><b>描述：</b>{{ currentPreviewPhoto?.description || '无描述' }}</h3>
+            <p><b>拍摄时间：</b>{{ currentPreviewPhoto?.taken_at ? formatTakenAt(currentPreviewPhoto.taken_at) : (currentPreviewPhoto?.exif?.['EXIF DateTimeOriginal'] ? formatExifDate(currentPreviewPhoto.exif['EXIF DateTimeOriginal']) : '无') }}</p>
+            <p><b>标签：</b>
+              <span v-if="currentPreviewPhoto?.tags && currentPreviewPhoto.tags.length">{{ currentPreviewPhoto.tags.join(', ') }}</span>
+              <span v-else>无</span>
+            </p>
+            <div style="margin-top: 16px; display: flex; justify-content: center; gap: 24px;">
+              <el-button type="primary" @click="showPrev" :disabled="currentPreviewIndex === 0">上一张</el-button>
+              <el-button type="primary" @click="showNext" :disabled="currentPreviewIndex === photos.length - 1">下一张</el-button>
+              <el-button type="info" @click="closePreview">关闭</el-button>
+            </div>
+          </div>
+        </div>
+      </template>
+    </el-dialog>
 
     <el-dialog v-model="thumbDialogVisible" title="缩略图预览" width="350px" :before-close="() => thumbDialogVisible = false">
       <div v-if="currentThumb">
@@ -202,7 +279,73 @@
   </div>
 </template>
 
+
 <script setup>
+// 智能搜索相关
+const smartSearchDialogVisible = ref(false)
+const smartSearchInput = ref('')
+const smartSearchLoading = ref(false)
+function openSmartSearchDialog() {
+  smartSearchDialogVisible.value = true
+  smartSearchInput.value = ''
+}
+async function submitSmartSearch() {
+  if (!smartSearchInput.value.trim()) return
+  smartSearchLoading.value = true
+  try {
+    const token = localStorage.getItem('token')
+    const res = await axios.post('/api/search/mcp', { query: smartSearchInput.value }, {
+      headers: { Authorization: `Token ${token}` }
+    })
+    if (res.data && res.data.photos) {
+      photos.value = res.data.photos
+      smartSearchDialogVisible.value = false
+    } else if (res.data && res.data.error) {
+      ElMessage.error(res.data.error)
+    }
+  } catch (e) {
+    ElMessage.error('智能搜索失败，请稍后再试')
+  } finally {
+    smartSearchLoading.value = false
+  }
+}
+const batchCarouselRef = ref(null)
+const batchCarouselWrapper = ref(null)
+
+function handleBatchCarouselWheel(e) {
+  if (!batchCarouselVisible.value || !batchCarouselRef.value) return
+  if (e.deltaY > 0) batchCarouselRef.value.next()
+  if (e.deltaY < 0) batchCarouselRef.value.prev()
+}
+// 集合轮播选择模式
+const selectMode = ref(false)
+function enterSelectMode() {
+  selectMode.value = true
+  selectedPhotoIds.value = []
+}
+function exitSelectMode() {
+  selectMode.value = false
+  selectedPhotoIds.value = []
+}
+function toggleSelectPhoto(id) {
+  const idx = selectedPhotoIds.value.indexOf(id)
+  if (idx === -1) selectedPhotoIds.value.push(id)
+  else selectedPhotoIds.value.splice(idx, 1)
+}
+function confirmBatchSelect() {
+  batchCarouselPhotos.value = photos.value.filter(p => selectedPhotoIds.value.includes(p.id))
+  batchCarouselVisible.value = true
+  selectMode.value = false
+}
+// 集合轮播相关
+const selectedPhotoIds = ref([])
+const batchCarouselVisible = ref(false)
+const batchCarouselPhotos = ref([])
+
+function openBatchCarousel() {
+  batchCarouselVisible.value = true
+  batchCarouselPhotos.value = photos.value.filter(p => selectedPhotoIds.value.includes(p.id))
+}
 import { ref, onMounted, nextTick } from 'vue'
 import axios from 'axios'
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -210,6 +353,53 @@ import { deletePhoto } from '../api/photo'
 import ImageEditor from 'tui-image-editor';
 import 'tui-image-editor/dist/tui-image-editor.css';
 
+// 全屏预览相关
+const previewDialogVisible = ref(false)
+const currentPreviewIndex = ref(0)
+const currentPreviewPhoto = ref(null)
+
+function openPreview(idx) {
+  currentPreviewIndex.value = idx
+  updatePreviewPhoto()
+  previewDialogVisible.value = true
+}
+
+function closePreview() {
+  previewDialogVisible.value = false
+}
+
+function showPrev() {
+  if (currentPreviewIndex.value > 0) {
+    currentPreviewIndex.value--;
+    updatePreviewPhoto();
+  }
+}
+
+function showNext() {
+  if (currentPreviewIndex.value < photos.value.length - 1) {
+    currentPreviewIndex.value++;
+    updatePreviewPhoto();
+  }
+}
+
+function updatePreviewPhoto() {
+  currentPreviewPhoto.value = photos.value[currentPreviewIndex.value] || null;
+}
+
+function handleWheel(e) {
+  if (!previewDialogVisible.value) return;
+  if (e.deltaY > 0) showNext();
+  if (e.deltaY < 0) showPrev();
+}
+
+onMounted(() => {
+  window.addEventListener('wheel', handleWheel);
+});
+
+import { onUnmounted } from 'vue';
+onUnmounted(() => {
+  window.removeEventListener('wheel', handleWheel);
+});
 
 // --- 核心数据 ---
 const photos = ref([])
@@ -914,6 +1104,35 @@ onMounted(() => {
 </style>
 
 <style scoped>
+/* 全屏预览样式 */
+.photo-preview-dialog .el-dialog__body {
+  padding: 0;
+}
+.photo-preview-wrapper {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.95);
+}
+.photo-preview-img {
+  max-width: 90vw;
+  max-height: 70vh;
+  box-shadow: 0 2px 24px #000a;
+  border-radius: 8px;
+  margin-bottom: 32px;
+}
+.photo-preview-info {
+  color: #fff;
+  text-align: center;
+  background: rgba(0,0,0,0.5);
+  padding: 24px 32px;
+  border-radius: 8px;
+  box-shadow: 0 2px 12px #0006;
+}
 .photo-wall {
   max-width: 900px;
   margin: 0 auto;
@@ -940,5 +1159,27 @@ onMounted(() => {
 }
 .instructions-content li {
     margin-bottom: 8px;
+}
+
+/* 集合轮播相关样式 */
+.photo-select-check {
+  position: absolute;
+  left: 12px;
+  top: 12px;
+  width: 28px;
+  height: 28px;
+  background: rgba(0,0,0,0.25);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+  cursor: pointer;
+  border: 2px solid #fff;
+}
+.photo-check-mark {
+  color: #42b983;
+  font-size: 20px;
+  font-weight: bold;
 }
 </style>
