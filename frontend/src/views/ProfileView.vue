@@ -23,9 +23,9 @@ const router = useRouter()
 const user = ref(null)
 
 function getUserInfo() {
-  // 从 localStorage 获取用户信息
-  const username = localStorage.getItem('username')
-  const email = localStorage.getItem('email')
+  // 从 sessionStorage 获取用户信息（关闭网页后自动退出登录）
+  const username = sessionStorage.getItem('username')
+  const email = sessionStorage.getItem('email')
   if (username && email) {
     user.value = { username, email }
   } else {
@@ -34,9 +34,9 @@ function getUserInfo() {
 }
 
 function logout() {
-  localStorage.removeItem('token')
-  localStorage.removeItem('username')
-  localStorage.removeItem('email')
+  sessionStorage.removeItem('token')
+  sessionStorage.removeItem('username')
+  sessionStorage.removeItem('email')
   user.value = null
   router.push('/login')
 }

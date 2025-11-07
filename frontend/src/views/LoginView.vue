@@ -48,9 +48,10 @@ const onSubmit = () => {
         const res = await login(form.value)
         // 兼容 res.data 或 res 结构
         const data = res.data || res
-        localStorage.setItem('token', data.token)
-        if (data.username) localStorage.setItem('username', data.username)
-        if (data.email) localStorage.setItem('email', data.email)
+        // 使用 sessionStorage 替代 localStorage，关闭网页后自动退出登录
+        sessionStorage.setItem('token', data.token)
+        if (data.username) sessionStorage.setItem('username', data.username)
+        if (data.email) sessionStorage.setItem('email', data.email)
         window.dispatchEvent(new Event('storage')) // 通知App.vue刷新
         error.value = ''
         success.value = '登录成功，正在跳转...'

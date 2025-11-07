@@ -3,12 +3,13 @@
 import { RouterLink, RouterView } from 'vue-router'
 import { ref, computed } from 'vue'
 
-const token = ref(localStorage.getItem('token'))
-const username = ref(localStorage.getItem('username'))
+// 使用 sessionStorage 替代 localStorage，关闭网页后自动退出登录
+const token = ref(sessionStorage.getItem('token'))
+const username = ref(sessionStorage.getItem('username'))
 
 window.addEventListener('storage', () => {
-  token.value = localStorage.getItem('token')
-  username.value = localStorage.getItem('username')
+  token.value = sessionStorage.getItem('token')
+  username.value = sessionStorage.getItem('username')
 })
 </script>
 

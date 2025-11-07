@@ -108,8 +108,41 @@
     <!-- 集合轮播模态框 -->
     <el-dialog v-model="batchCarouselVisible" title="图片集合轮播" width="900px" :close-on-click-modal="false">
       <template #default>
-        <div ref="batchCarouselWrapper" @wheel="handleBatchCarouselWheel">
-          <el-carousel ref="batchCarouselRef" height="500px" arrow="always" :autoplay="true">
+        <!-- 自动播放设置 -->
+        <div style="margin-bottom: 16px; display: flex; align-items: center; gap: 16px; padding: 12px; background: #f5f5f5; border-radius: 8px;">
+          <el-switch 
+            v-model="carouselAutoplay" 
+            active-text="自动播放"
+          />
+          <template v-if="carouselAutoplay">
+            <span style="color: #666;">切换间隔：</span>
+            <el-button size="small" @click="carouselIntervalTemp = Math.max(0.01, carouselIntervalTemp - 1)">-</el-button>
+            <el-input-number 
+              v-model="carouselIntervalTemp" 
+              :min="0.01" 
+              :max="60" 
+              :step="0.01"
+              :precision="2"
+              :controls="false"
+              style="width: 100px;"
+            />
+            <el-button size="small" @click="carouselIntervalTemp = Math.min(60, carouselIntervalTemp + 1)">+</el-button>
+            <span style="color: #666;">秒</span>
+            <el-button type="primary" size="small" @click="applyCarouselInterval">确认</el-button>
+          </template>
+        </div>
+        
+        <div ref="batchCarouselWrapper" 
+             @wheel="handleBatchCarouselWheel"
+             @touchstart="handleTouchStart"
+             @touchmove="handleTouchMove"
+             @touchend="handleTouchEnd">
+          <el-carousel 
+            v-if="batchCarouselVisible"
+            ref="batchCarouselRef" 
+            height="500px" 
+            arrow="always" 
+            :autoplay="false">
             <el-carousel-item v-for="photo in batchCarouselPhotos" :key="photo.id">
               <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%;">
                 <img :src="fixImageUrl(photo.image)" alt="原图" style="max-height: 400px; border-radius: 8px; box-shadow: 0 2px 24px #000a;" />
@@ -133,9 +166,34 @@
     <!-- 全屏图片预览模态框 -->
     <el-dialog v-model="previewDialogVisible" fullscreen custom-class="photo-preview-dialog" :show-close="false">
       <template #default>
+        <!-- 自动播放设置 -->
+        <div style="position: absolute; top: 20px; left: 20px; z-index: 10; display: flex; align-items: center; gap: 12px; padding: 12px; background: rgba(245, 245, 245, 0.95); border-radius: 8px;">
+          <el-switch 
+            v-model="previewAutoplay" 
+            active-text="自动播放"
+          />
+          <template v-if="previewAutoplay">
+            <span style="color: #666;">切换间隔：</span>
+            <el-button size="small" @click="previewIntervalTemp = Math.max(0.01, previewIntervalTemp - 1)">-</el-button>
+            <el-input-number 
+              v-model="previewIntervalTemp" 
+              :min="0.01" 
+              :max="60" 
+              :step="0.01"
+              :precision="2"
+              :controls="false"
+              style="width: 100px;"
+            />
+            <el-button size="small" @click="previewIntervalTemp = Math.min(60, previewIntervalTemp + 1)">+</el-button>
+            <span style="color: #666;">秒</span>
+            <el-button type="primary" size="small" @click="applyPreviewInterval">确认</el-button>
+          </template>
+        </div>
+        
         <div class="photo-preview-wrapper"
           @touchstart="onTouchStart"
           @touchmove="onTouchMove"
+          @touchend="onTouchEnd"
         >
           <img :src="fixImageUrl(currentPreviewPhoto?.image)" alt="原图" class="photo-preview-img" />
           <div class="photo-preview-info">
@@ -293,7 +351,7 @@ async function submitSmartSearch() {
   if (!smartSearchInput.value.trim()) return
   smartSearchLoading.value = true
   try {
-    const token = localStorage.getItem('token')
+    const token = sessionStorage.getItem('token')
     const res = await axios.post('/api/search/mcp', { query: smartSearchInput.value }, {
       headers: { Authorization: `Token ${token}` }
     })
@@ -312,11 +370,117 @@ async function submitSmartSearch() {
 const batchCarouselRef = ref(null)
 const batchCarouselWrapper = ref(null)
 
+// 轮播自动播放设置
+const carouselAutoplay = ref(false)
+const carouselInterval = ref(3) // 默认3秒
+const carouselIntervalTemp = ref(3) // 临时设置值
+let carouselAutoplayTimer = null // 自定义定时器
+
+// 启动集合轮播自动播放
+function startCarouselAutoplay() {
+  stopCarouselAutoplay()
+  if (carouselAutoplay.value && batchCarouselVisible.value && batchCarouselRef.value) {
+    carouselAutoplayTimer = setInterval(() => {
+      if (batchCarouselRef.value) {
+        batchCarouselRef.value.next()
+      }
+    }, carouselInterval.value * 1000)
+  }
+}
+
+// 停止集合轮播自动播放
+function stopCarouselAutoplay() {
+  if (carouselAutoplayTimer) {
+    clearInterval(carouselAutoplayTimer)
+    carouselAutoplayTimer = null
+  }
+}
+
+// 应用集合轮播间隔设置
+function applyCarouselInterval() {
+  carouselInterval.value = carouselIntervalTemp.value
+  ElMessage.success(`已设置切换间隔为 ${carouselIntervalTemp.value} 秒`)
+}
+
+// 监听集合轮播自动播放开关，同步临时值
+watch(carouselAutoplay, (newVal) => {
+  if (newVal) {
+    carouselIntervalTemp.value = carouselInterval.value
+  }
+})
+
+// 监听集合轮播自动播放状态
+watch([carouselAutoplay, carouselInterval], () => {
+  if (carouselAutoplay.value) {
+    startCarouselAutoplay()
+  } else {
+    stopCarouselAutoplay()
+  }
+})
+
 function handleBatchCarouselWheel(e) {
   if (!batchCarouselVisible.value || !batchCarouselRef.value) return
   if (e.deltaY > 0) batchCarouselRef.value.next()
   if (e.deltaY < 0) batchCarouselRef.value.prev()
 }
+
+// 触摸滑动支持
+let touchStartX = 0
+let touchStartY = 0
+let touchEndX = 0
+let touchEndY = 0
+let isSwiping = false
+
+function handleTouchStart(e) {
+  if (!batchCarouselVisible.value) return
+  touchStartX = e.touches[0].clientX
+  touchStartY = e.touches[0].clientY
+  touchEndX = touchStartX
+  touchEndY = touchStartY
+  isSwiping = false
+}
+
+function handleTouchMove(e) {
+  if (!batchCarouselVisible.value) return
+  touchEndX = e.touches[0].clientX
+  touchEndY = e.touches[0].clientY
+  
+  const deltaX = touchEndX - touchStartX
+  const deltaY = touchEndY - touchStartY
+  
+  // 判断是否为水平滑动
+  if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 10) {
+    isSwiping = true
+    e.preventDefault() // 阻止默认滚动行为
+  }
+}
+
+function handleTouchEnd(e) {
+  if (!batchCarouselVisible.value || !batchCarouselRef.value) return
+  
+  const deltaX = touchEndX - touchStartX
+  const deltaY = touchEndY - touchStartY
+  
+  // 只有水平滑动距离大于垂直滑动距离且大于50px时才触发切换
+  if (isSwiping && Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 50) {
+    if (deltaX > 0) {
+      // 向右滑动 - 上一张
+      batchCarouselRef.value.prev()
+    } else {
+      // 向左滑动 - 下一张
+      batchCarouselRef.value.next()
+    }
+    e.preventDefault()
+  }
+  
+  // 重置
+  touchStartX = 0
+  touchStartY = 0
+  touchEndX = 0
+  touchEndY = 0
+  isSwiping = false
+}
+
 // 集合轮播选择模式
 const selectMode = ref(false)
 function enterSelectMode() {
@@ -346,9 +510,11 @@ function openBatchCarousel() {
   batchCarouselVisible.value = true
   batchCarouselPhotos.value = photos.value.filter(p => selectedPhotoIds.value.includes(p.id))
 }
-import { ref, onMounted, nextTick } from 'vue'
+
+import { ref, onMounted, nextTick, watch } from 'vue'
 import axios from 'axios'
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { Loading } from '@element-plus/icons-vue';
 import { deletePhoto } from '../api/photo'
 import ImageEditor from 'tui-image-editor';
 import 'tui-image-editor/dist/tui-image-editor.css';
@@ -358,6 +524,19 @@ const previewDialogVisible = ref(false)
 const currentPreviewIndex = ref(0)
 const currentPreviewPhoto = ref(null)
 
+// 全屏预览自动播放设置
+const previewAutoplay = ref(false)
+const previewInterval = ref(3) // 默认3秒
+const previewIntervalTemp = ref(3) // 临时设置值
+let previewAutoplayTimer = null
+
+// 应用全屏预览间隔设置
+function applyPreviewInterval() {
+  // 直接更新间隔值，watch 会自动重启自动播放
+  previewInterval.value = previewIntervalTemp.value
+  ElMessage.success(`已设置切换间隔为 ${previewIntervalTemp.value} 秒`)
+}
+
 function openPreview(idx) {
   currentPreviewIndex.value = idx
   updatePreviewPhoto()
@@ -366,7 +545,53 @@ function openPreview(idx) {
 
 function closePreview() {
   previewDialogVisible.value = false
+  stopPreviewAutoplay()
 }
+
+function startPreviewAutoplay() {
+  stopPreviewAutoplay()
+  if (previewAutoplay.value && previewDialogVisible.value) {
+    previewAutoplayTimer = setInterval(() => {
+      if (currentPreviewIndex.value < photos.value.length - 1) {
+        showNext()
+      } else {
+        // 到最后一张后循环到第一张
+        currentPreviewIndex.value = 0
+        updatePreviewPhoto()
+      }
+    }, previewInterval.value * 1000)
+  }
+}
+
+function stopPreviewAutoplay() {
+  if (previewAutoplayTimer) {
+    clearInterval(previewAutoplayTimer)
+    previewAutoplayTimer = null
+  }
+}
+
+// 监听全屏预览自动播放开关，同步临时值
+watch(previewAutoplay, (newVal) => {
+  if (newVal) {
+    previewIntervalTemp.value = previewInterval.value
+  }
+})
+
+// 监听全屏预览自动播放状态
+watch([previewAutoplay, previewInterval], () => {
+  if (previewAutoplay.value) {
+    startPreviewAutoplay()
+  } else {
+    stopPreviewAutoplay()
+  }
+})
+
+// 监听全屏预览对话框关闭
+watch(previewDialogVisible, (newVal) => {
+  if (!newVal) {
+    stopPreviewAutoplay()
+  }
+})
 
 function showPrev() {
   if (currentPreviewIndex.value > 0) {
@@ -392,6 +617,64 @@ function handleWheel(e) {
   if (e.deltaY < 0) showPrev();
 }
 
+// 全屏预览触摸滑动支持
+let previewTouchStartX = 0
+let previewTouchStartY = 0
+let previewTouchEndX = 0
+let previewTouchEndY = 0
+let previewIsSwiping = false
+
+function onTouchStart(e) {
+  if (!previewDialogVisible.value) return
+  previewTouchStartX = e.touches[0].clientX
+  previewTouchStartY = e.touches[0].clientY
+  previewTouchEndX = previewTouchStartX
+  previewTouchEndY = previewTouchStartY
+  previewIsSwiping = false
+}
+
+function onTouchMove(e) {
+  if (!previewDialogVisible.value) return
+  
+  previewTouchEndX = e.touches[0].clientX
+  previewTouchEndY = e.touches[0].clientY
+  
+  const deltaX = previewTouchEndX - previewTouchStartX
+  const deltaY = previewTouchEndY - previewTouchStartY
+  
+  // 判断是否为水平滑动
+  if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 10) {
+    previewIsSwiping = true
+    e.preventDefault() // 阻止默认滚动行为
+  }
+}
+
+function onTouchEnd(e) {
+  if (!previewDialogVisible.value) return
+  
+  const deltaX = previewTouchEndX - previewTouchStartX
+  const deltaY = previewTouchEndY - previewTouchStartY
+  
+  // 只有水平滑动距离大于垂直滑动距离且大于50px时才触发切换
+  if (previewIsSwiping && Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 50) {
+    if (deltaX > 0) {
+      // 向右滑动 - 上一张
+      showPrev()
+    } else {
+      // 向左滑动 - 下一张
+      showNext()
+    }
+    e.preventDefault()
+  }
+  
+  // 重置
+  previewTouchStartX = 0
+  previewTouchStartY = 0
+  previewTouchEndX = 0
+  previewTouchEndY = 0
+  previewIsSwiping = false
+}
+
 onMounted(() => {
   window.addEventListener('wheel', handleWheel);
 });
@@ -403,6 +686,7 @@ onUnmounted(() => {
 
 // --- 核心数据 ---
 const photos = ref([])
+const isLoading = ref(true)
 
 // --- 弹窗控制 ---
 const thumbDialogVisible = ref(false)
@@ -832,7 +1116,7 @@ async function saveEditedImage() {
   }
 
   isSavingImage.value = true;
-  const token = localStorage.getItem('token');
+  const token = sessionStorage.getItem('token');
   
   try {
     const base64String = imageEditorInstance.value.toDataURL();
@@ -875,7 +1159,7 @@ function openEditDialog(photo) {
 }
 
 async function fetchAllUserTags() {
-  const token = localStorage.getItem('token');
+  const token = sessionStorage.getItem('token');
   if (!token) return;
   try {
     const res = await axios.get('/api/user_tags/', {
@@ -890,7 +1174,7 @@ async function fetchAllUserTags() {
 async function savePhotoChanges() {
   if (!editingPhoto.value) return;
   editLoading.value = true;
-  const token = localStorage.getItem('token');
+  const token = sessionStorage.getItem('token');
   try {
     const url = `/api/photos/${editingPhoto.value.id}/update/`;
     const payload = {
@@ -998,21 +1282,35 @@ function formatExifDate(exifDate) {
 
 // --- 数据获取与筛选 ---
 async function fetchPhotos(params = {}) {
-  const token = localStorage.getItem('token')
-  if (!token) return
+  console.log('[DEBUG] fetchPhotos 开始执行')
+  const token = sessionStorage.getItem('token')
+  console.log('[DEBUG] token 状态:', token ? '存在' : '不存在')
+  if (!token) {
+    console.log('[DEBUG] 无 token，设置 isLoading = false')
+    isLoading.value = false
+    return
+  }
+  console.log('[DEBUG] 开始加载照片，设置 isLoading = true')
+  isLoading.value = true
   try {
     const query = Object.entries(params)
       .filter(([, value]) => value)
       .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
       .join('&');
     const url = `/api/photos/${query ? '?' + query : ''}`;
+    console.log('[DEBUG] 请求 URL:', url)
     const res = await axios.get(url, {
       headers: { Authorization: `Token ${token}` }
     })
+    console.log('[DEBUG] 获取到照片数量:', res.data.photos?.length || 0)
     photos.value = res.data.photos || []
+    console.log('[DEBUG] photos.value 已更新:', photos.value.length)
   } catch (e) {
-    console.error('获取照片失败:', e);
+    console.error('[DEBUG] 获取照片失败:', e);
     photos.value = []
+  } finally {
+    console.log('[DEBUG] 设置 isLoading = false')
+    isLoading.value = false
   }
 }
 
@@ -1072,7 +1370,7 @@ async function onDelete(photoId) {
       }
     );
 
-    const token = localStorage.getItem('token');
+    const token = sessionStorage.getItem('token');
     if (!token) return;
 
     await deletePhoto(photoId, token);
@@ -1090,6 +1388,9 @@ async function onDelete(photoId) {
 
 // --- 生命周期钩子 ---
 onMounted(() => {
+    console.log('[DEBUG] PhotoWallView onMounted 执行')
+    console.log('[DEBUG] isLoading 初始值:', isLoading.value)
+    console.log('[DEBUG] photos 初始值:', photos.value)
     fetchPhotos();
     fetchAllUserTags();
 });

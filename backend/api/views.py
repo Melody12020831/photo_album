@@ -17,18 +17,47 @@ def mcp_search(request):
     if not query:
         return Response({'error': '请输入搜索内容'}, status=400)
 
-    # 构造System Prompt
+    # 获取用户相册中所有已有的标签和描述信息，供大模型参考
+    from .models import UserTag
+    user_photos = Photo.objects.filter(user=user)
+    
+    # 收集所有不重复的标签
+    all_tags = set()
+    for photo in user_photos:
+        if photo.tags:
+            all_tags.update(photo.tags)
+    
+    # 收集所有不为空的描述（去重，最多取50条避免prompt过长）
+    all_descriptions = []
+    for photo in user_photos:
+        if photo.description and photo.description.strip():
+            desc = photo.description.strip()
+            if desc not in all_descriptions:
+                all_descriptions.append(desc)
+                if len(all_descriptions) >= 50:
+                    break
+    
+    # 构造System Prompt，包含用户相册的标签和描述信息
     today = timezone.now().date().isoformat()
+    
+    tags_info = f"用户相册中已有的标签：{', '.join(sorted(all_tags))}" if all_tags else "用户相册中暂无标签。"
+    descriptions_info = f"用户相册中部分图片描述示例：\n" + "\n".join([f"- {desc}" for desc in all_descriptions[:10]]) if all_descriptions else "用户相册中暂无图片描述。"
+    
     system_prompt = f"""
-你是一个智能相册助手。你的任务是将用户的自然语言查询转换为一个严格的 JSON 对象，用于数据库检索。
-今天是{today}。
-你必须返回以下格式的 JSON，字段不存在时返回 null：{{"tags": ["string"], "date_from": "YYYY-MM-DD", "date_to": "YYYY-MM-DD", "keywords": ["string"]}}
-字段映射规则：
-- tags: 从查询中提取的物体、场景、人物等名词标签 (如 "狗", "海滩", "公园")。
-- date_from / date_to: 从查询中提取的时间范围 (如 "去年夏天" -> {{"date_from": "2024-06-01", "date_to": "2024-08-31"}}；"上周" -> ...)。
-- keywords: 描述性的词语，用于模糊搜索图片描述字段 (如 "开心", "模糊")。
-只返回JSON，不要任何解释。
-"""
+    你是一个智能相册助手。你的任务是将用户的自然语言查询转换为一个严格的 JSON 对象，用于数据库检索。
+    今天是{today}。
+
+    为了更好地理解用户的查询意图，以下是用户相册的现有信息：
+    {tags_info}
+    {descriptions_info}
+
+    你必须返回以下格式的 JSON，字段不存在时返回 null：{{"tags": ["string"], "date_from": "YYYY-MM-DD", "date_to": "YYYY-MM-DD", "keywords": ["string"]}}
+    字段映射规则：
+    - tags: 从查询中提取的物体、场景、人物等名词标签。请优先使用用户相册中已有的标签，如果查询中的概念在已有标签中存在，请使用已有标签的准确名称。
+    - date_from / date_to: 从查询中提取的时间范围 (如 "去年夏天" -> {{"date_from": "2024-06-01", "date_to": "2024-08-31"}}；"上周" -> ...)。
+    - keywords: 描述性的词语，用于模糊搜索图片描述字段。请参考用户相册中已有的描述风格和用词。
+    只返回JSON，不要任何解释。
+    """
 
     # 使用豆包模型（OpenAI客户端）进行自然语言解析
     from openai import OpenAI
@@ -249,22 +278,36 @@ class PhotoUploadView(APIView):
     def post(self, request):
         print('FILES:', request.FILES)
         print('DATA:', request.data)
-        data = request.data.copy()
-        data['user'] = request.user.id
         
-        serializer = PhotoSerializer(data=data, context={'request': request})
-        
-        if serializer.is_valid():
-            photo = serializer.save(user=request.user)
-
-            # 上传成功后，直接返回图片信息。
-            # 前端接收到这个响应后，应弹窗询问用户是否进行AI分析。
-            return Response({
-                'msg': '图片上传成功',
-                'photo': serializer.data,
-            }, status=status.HTTP_201_CREATED)
+        try:
+            # 不使用 .copy()，直接构造新字典，避免深拷贝文件对象
+            data = {
+                'user': request.user.id,
+                'image': request.FILES.get('image'),
+                'description': request.data.get('description', ''),
+                'tags': request.data.get('tags', [])
+            }
             
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            serializer = PhotoSerializer(data=data, context={'request': request})
+            
+            if serializer.is_valid():
+                photo = serializer.save(user=request.user)
+
+                # 上传成功后，直接返回图片信息。
+                # 前端接收到这个响应后，应弹窗询问用户是否进行AI分析。
+                return Response({
+                    'msg': '图片上传成功',
+                    'photo': serializer.data,
+                }, status=status.HTTP_201_CREATED)
+            
+            print('Serializer errors:', serializer.errors)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            
+        except Exception as e:
+            print(f'Upload error: {type(e).__name__}: {str(e)}')
+            import traceback
+            traceback.print_exc()
+            return Response({'error': f'上传失败: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 # (新增) AI分析触发API
 class AnalyzeTagsView(APIView):

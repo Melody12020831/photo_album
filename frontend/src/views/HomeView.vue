@@ -18,7 +18,7 @@
 import { useRouter } from 'vue-router'
 const router = useRouter()
 function goProfile() {
-  const token = localStorage.getItem('token')
+  const token = sessionStorage.getItem('token')
   if (token) {
     router.push('/profile')
   } else {

@@ -30,7 +30,7 @@ const tags = ref([])
 const newTag = ref('')
 
 async function fetchTags() {
-  const token = localStorage.getItem('token')
+  const token = sessionStorage.getItem('token')
   if (!token) return
   const res = await axios.get('/api/user_tags/', {
     headers: { Authorization: `Token ${token}` }
@@ -41,7 +41,7 @@ async function fetchTags() {
 async function onCreateTag() {
   const tagName = newTag.value.trim()
   if (!tagName) return
-  const token = localStorage.getItem('token')
+  const token = sessionStorage.getItem('token')
   await axios.post('/api/user_tags/', { tag: tagName }, {
     headers: { Authorization: `Token ${token}` }
   })
@@ -50,7 +50,7 @@ async function onCreateTag() {
 }
 
 async function onUpdateTag(row) {
-  const token = localStorage.getItem('token')
+  const token = sessionStorage.getItem('token')
   await axios.put('/api/user_tags/', { old_tag: row.tag, new_tag: row.editName }, {
     headers: { Authorization: `Token ${token}` }
   })
@@ -58,7 +58,7 @@ async function onUpdateTag(row) {
 }
 
 async function onDeleteTag(row) {
-  const token = localStorage.getItem('token')
+  const token = sessionStorage.getItem('token')
   await axios.delete('/api/user_tags/', {
     headers: { Authorization: `Token ${token}` },
     data: { tag: row.tag }

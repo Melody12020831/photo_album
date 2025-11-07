@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
 from django.contrib.auth import authenticate
+import json
 
 from .models import Photo, UserTag # 导入 UserTag
 
@@ -118,8 +119,10 @@ class PhotoSerializer(serializers.ModelSerializer):
         location = None
         resolution = None
         
-        # 首先获取用户提交的标签
+        # 首先获取用户提交的标签，确保是列表类型
         tags = validated_data.get('tags', [])
+        if not isinstance(tags, list):
+            tags = []
         
         try:
             from io import BytesIO

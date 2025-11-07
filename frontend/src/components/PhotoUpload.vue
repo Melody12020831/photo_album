@@ -117,7 +117,7 @@ const allAvailableTags = computed(() => {
 
 // 获取用户所有标签
 async function fetchUserTags() {
-  const token = localStorage.getItem('token')
+  const token = sessionStorage.getItem('token')
   if (!token) return
   tagLoading.value = true
   try {
@@ -143,7 +143,7 @@ async function createNewTag(targetTagList) { // 接收一个 ref 数组
     });
 
     if (value) {
-      const token = localStorage.getItem('token');
+      const token = sessionStorage.getItem('token');
       const res = await axios.post('/api/user_tags/', { tag: value }, {
         headers: { Authorization: `Token ${token}` }
       });
@@ -193,7 +193,7 @@ function onFileChange(e) {
           }
         )
         for (const tag of newExifTags) {
-          const token = localStorage.getItem('token');
+          const token = sessionStorage.getItem('token');
           await axios.post('/api/user_tags/', { tag }, {
              headers: { Authorization: `Token ${token}` }
           });
@@ -239,7 +239,7 @@ async function onUpload() {
   msg.value = ''
   msgType.value = ''
   try {
-    const token = localStorage.getItem('token')
+    const token = sessionStorage.getItem('token')
     const data = new FormData()
     data.append('image', form.value.file)
     data.append('description', form.value.description)
@@ -312,7 +312,7 @@ async function triggerAiAnalysis(photo) {
   suggestedTags.value = []
 
   try {
-    const token = localStorage.getItem('token')
+    const token = sessionStorage.getItem('token')
     // 调用新的 AI 分析接口
     const res = await axios.post(`/api/photos/${photo.id}/analyze-tags/`, {}, {
       headers: { Authorization: `Token ${token}` }
@@ -340,7 +340,7 @@ async function triggerAiAnalysis(photo) {
 // 处理 AI 弹窗确认
 async function handleAiDialogConfirm() {
   if (!currentPhoto.value) return;
-  const token = localStorage.getItem('token')
+  const token = sessionStorage.getItem('token')
   try {
     // 调用更新标签的接口
     await axios.post('/api/update_photo_tags/', {
