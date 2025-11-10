@@ -59,11 +59,33 @@
       </el-form-item>
     </el-form>
     <div style="margin-bottom: 16px; display: flex; gap: 12px; align-items: center;">
-      <el-button type="success" @click="enterSelectMode" :disabled="photos.length === 0">轮播播放</el-button>
-      <el-button type="primary" @click="openSmartSearchDialog" style="margin-left: 0;">智能搜索</el-button>
-      <span v-if="selectMode && selectedPhotoIds.length">已选中 {{ selectedPhotoIds.length }} 张</span>
-      <el-button v-if="selectMode" type="primary" @click="confirmBatchSelect" style="margin-left: auto;">选择完毕</el-button>
-      <el-button v-if="selectMode" @click="exitSelectMode" style="margin-left: 0;">取消</el-button>
+      <el-button type="success" @click="enterSelectMode" :disabled="photos.length === 0 || batchEditMode.active">轮播播放</el-button>
+      <el-button type="primary" @click="openSmartSearchDialog" :disabled="batchEditMode.active" style="margin-left: 0;">智能搜索</el-button>
+      <el-button type="info" @click="enterBatchEditMode" :disabled="photos.length === 0 || selectMode" v-if="!batchEditMode.active">批量操作</el-button>
+      
+      <!-- 轮播模式下的提示和按钮 -->
+      <template v-if="selectMode">
+        <span v-if="selectedPhotoIds.length">已选中 {{ selectedPhotoIds.length }} 张</span>
+        <el-button type="primary" @click="confirmBatchSelect" style="margin-left: auto;">选择完毕</el-button>
+        <el-button @click="exitSelectMode" style="margin-left: 0;">取消</el-button>
+      </template>
+      
+      <!-- 批量操作模式下的提示和按钮 -->
+      <template v-if="batchEditMode.active">
+        <span v-if="batchSelectedPhotoIds.length" style="color: #409eff; font-weight: bold;">
+          已选中 {{ batchSelectedPhotoIds.length }} 张图片
+        </span>
+        <el-button type="success" @click="batchDownload" :disabled="batchSelectedPhotoIds.length === 0" style="margin-left: auto;">
+          批量下载 ({{ batchSelectedPhotoIds.length }})
+        </el-button>
+        <el-button type="danger" @click="batchDelete" :disabled="batchSelectedPhotoIds.length === 0">
+          批量删除 ({{ batchSelectedPhotoIds.length }})
+        </el-button>
+        <el-button type="warning" @click="openBatchEditTagsDialog" :disabled="batchSelectedPhotoIds.length === 0">
+          批量修改标签 ({{ batchSelectedPhotoIds.length }})
+        </el-button>
+        <el-button @click="exitBatchEditMode">取消批量操作</el-button>
+      </template>
     </div>
     <!-- 智能搜索对话框 -->
     <el-dialog v-model="smartSearchDialogVisible" title="智能搜索" width="500px" :close-on-click-modal="false">
@@ -77,15 +99,89 @@
         <el-button type="primary" :loading="smartSearchLoading" @click="submitSmartSearch">搜索</el-button>
       </template>
     </el-dialog>
+
+    <!-- 批量编辑标签对话框 -->
+    <el-dialog v-model="batchEditTagsDialogVisible" title="批量修改标签" width="600px" :close-on-click-modal="false">
+      <template #default>
+        <div>
+          <p style="margin-bottom: 12px; color: #606266;">
+            已选中 <strong style="color: #409eff;">{{ batchSelectedPhotoIds.length }}</strong> 张图片
+          </p>
+          <el-alert 
+            title="提示" 
+            type="info" 
+            :closable="false"
+            style="margin-bottom: 16px;"
+          >
+            <template #default>
+              <div style="font-size: 13px;">
+                <p style="margin: 4px 0;">• <strong>添加标签</strong>：选择的标签会添加到所有图片（不会删除原有标签）</p>
+                <p style="margin: 4px 0;">• <strong>替换标签</strong>：会清空所有图片的原有标签，仅保留您选择的标签</p>
+              </div>
+            </template>
+          </el-alert>
+          
+          <el-form label-width="100px">
+            <el-form-item label="操作模式">
+              <el-radio-group v-model="batchEditMode.mode">
+                <el-radio label="add">添加标签</el-radio>
+                <el-radio label="replace">替换标签</el-radio>
+              </el-radio-group>
+            </el-form-item>
+            
+            <el-form-item label="选择标签">
+              <div style="display: flex; gap: 8px; width: 100%;">
+                <el-select
+                  v-model="batchEditMode.tags"
+                  multiple
+                  placeholder="请选择标签"
+                  style="flex: 1;"
+                  :loading="tagLoading"
+                  filterable
+                  allow-create
+                  default-first-option
+                >
+                  <el-option
+                    v-for="tag in allUserTags"
+                    :key="tag"
+                    :label="tag"
+                    :value="tag"
+                  />
+                </el-select>
+                <el-button @click="createNewTagForBatchEdit">新建标签</el-button>
+              </div>
+              <div v-if="allUserTags.length === 0" style="font-size: 12px; color: #909399; margin-top: 4px;">
+                暂无标签，请先创建
+              </div>
+            </el-form-item>
+          </el-form>
+        </div>
+      </template>
+      <template #footer>
+        <el-button @click="batchEditTagsDialogVisible = false">取消</el-button>
+        <el-button 
+          type="primary" 
+          @click="confirmBatchEditTags"
+          :loading="batchEditLoading"
+          :disabled="batchEditMode.tags.length === 0"
+        >
+          确认修改
+        </el-button>
+      </template>
+    </el-dialog>
+
     <el-row :gutter="16">
       <el-col v-for="(photo, idx) in photos" :key="photo.id" :span="32" style="margin-bottom: 32px;">
         <el-card shadow="hover" style="min-height: 340px; min-width: 800px; padding-bottom: 16px; position: relative;">
           <div v-if="selectMode" class="photo-select-check" @click.stop="toggleSelectPhoto(photo.id)">
             <span v-if="selectedPhotoIds.includes(photo.id)" class="photo-check-mark">✔</span>
           </div>
+          <div v-if="batchEditMode.active" class="photo-batch-check" @click.stop="toggleBatchSelectPhoto(photo.id)">
+            <span v-if="batchSelectedPhotoIds.includes(photo.id)" class="photo-check-mark">✔</span>
+          </div>
           <img :src="fixImageUrl(photo.thumbnail || photo.image)" alt="photo"
             style="width: 100%; max-height: 200px; object-fit: cover; cursor: pointer;"
-            @click="selectMode ? toggleSelectPhoto(photo.id) : openPreview(idx)"
+            @click="handlePhotoClick(photo, idx)"
           />
           <div style="margin-top: 8px;">
             <span>{{ photo.description || '无描述' }}</span>
@@ -97,6 +193,7 @@
             <el-button type="success" size="small" @click="showThumb(photo)">查看缩略图</el-button>
             <el-button type="warning" size="small" @click="openEditDialog(photo)">编辑标签和描述</el-button>
             <el-button size="small" @click="openImageEditor(photo)">编辑图片</el-button>
+            <el-button type="info" size="small" @click="downloadPhoto(photo)">下载</el-button>
             <el-button type="danger" size="small" @click="onDelete(photo.id)">删除</el-button>
           </div>
         </el-card>
@@ -501,6 +598,562 @@ function confirmBatchSelect() {
   batchCarouselVisible.value = true
   selectMode.value = false
 }
+
+// 批量编辑模式
+const batchEditMode = ref({
+  active: false,
+  mode: 'add', // 'add' 或 'replace'
+  tags: []
+})
+const batchSelectedPhotoIds = ref([])
+const batchEditTagsDialogVisible = ref(false)
+const batchEditLoading = ref(false)
+const tagLoading = ref(false)
+
+// 进入批量编辑模式
+function enterBatchEditMode() {
+  batchEditMode.value.active = true
+  batchSelectedPhotoIds.value = []
+}
+
+// 退出批量编辑模式
+function exitBatchEditMode() {
+  batchEditMode.value.active = false
+  batchSelectedPhotoIds.value = []
+}
+
+// 切换选中图片
+function toggleBatchSelectPhoto(id) {
+  const idx = batchSelectedPhotoIds.value.indexOf(id)
+  if (idx === -1) {
+    batchSelectedPhotoIds.value.push(id)
+  } else {
+    batchSelectedPhotoIds.value.splice(idx, 1)
+  }
+}
+
+// 处理图片点击
+function handlePhotoClick(photo, idx) {
+  if (selectMode.value) {
+    toggleSelectPhoto(photo.id)
+  } else if (batchEditMode.value.active) {
+    toggleBatchSelectPhoto(photo.id)
+  } else {
+    openPreview(idx)
+  }
+}
+
+// 打开批量编辑标签对话框
+function openBatchEditTagsDialog() {
+  if (batchSelectedPhotoIds.value.length === 0) {
+    ElMessage.warning('请先选择要编辑的图片')
+    return
+  }
+  batchEditMode.value.mode = 'add'
+  batchEditMode.value.tags = []
+  batchEditTagsDialogVisible.value = true
+}
+
+// 为批量编辑创建新标签
+async function createNewTagForBatchEdit() {
+  try {
+    const { value } = await ElMessageBox.prompt('请输入新的标签名', '新建标签', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      inputPattern: /\S/,
+      inputErrorMessage: '标签名不能为空'
+    })
+
+    if (value) {
+      const token = sessionStorage.getItem('token')
+      const res = await axios.post('/api/user_tags/', { tag: value }, {
+        headers: { Authorization: `Token ${token}` }
+      })
+
+      ElMessage.success(res.data.msg || '标签创建成功')
+      
+      // 刷新标签列表
+      await fetchAllUserTags()
+      
+      // 自动添加到批量编辑标签选择中
+      if (!batchEditMode.value.tags.includes(value)) {
+        batchEditMode.value.tags.push(value)
+      }
+    }
+  } catch (error) {
+    if (error !== 'cancel') {
+      const errorMsg = error.response?.data?.error || '创建失败'
+      ElMessage.error(errorMsg)
+    }
+  }
+}
+
+// 确认批量编辑标签
+async function confirmBatchEditTags() {
+  if (batchSelectedPhotoIds.value.length === 0) {
+    ElMessage.warning('请先选择要编辑的图片')
+    return
+  }
+  
+  if (batchEditMode.value.tags.length === 0) {
+    ElMessage.warning('请选择至少一个标签')
+    return
+  }
+
+  const mode = batchEditMode.value.mode
+  const modeText = mode === 'add' ? '添加' : '替换'
+  
+  try {
+    await ElMessageBox.confirm(
+      `确定要为选中的 ${batchSelectedPhotoIds.value.length} 张图片${modeText}标签吗？`,
+      '确认操作',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning',
+      }
+    )
+
+    batchEditLoading.value = true
+    const token = sessionStorage.getItem('token')
+    
+    let successCount = 0
+    let failCount = 0
+
+    // 逐个更新图片标签
+    for (const photoId of batchSelectedPhotoIds.value) {
+      try {
+        const photo = photos.value.find(p => p.id === photoId)
+        if (!photo) continue
+
+        let newTags = []
+        if (mode === 'add') {
+          // 添加模式：合并原有标签和新标签
+          newTags = [...new Set([...photo.tags, ...batchEditMode.value.tags])]
+        } else {
+          // 替换模式：仅使用新标签
+          newTags = [...batchEditMode.value.tags]
+        }
+
+        await axios.post('/api/update_photo_tags/', {
+          photo_id: photoId,
+          tags: newTags
+        }, {
+          headers: { Authorization: `Token ${token}` }
+        })
+
+        // 更新本地数据
+        photo.tags = newTags
+        successCount++
+
+      } catch (error) {
+        failCount++
+        console.error(`更新图片 ${photoId} 失败:`, error)
+      }
+    }
+
+    batchEditLoading.value = false
+    batchEditTagsDialogVisible.value = false
+
+    if (successCount > 0) {
+      ElMessage.success(`成功${modeText} ${successCount} 张图片的标签` + (failCount > 0 ? `，失败 ${failCount} 张` : ''))
+    } else {
+      ElMessage.error('所有图片标签更新失败')
+    }
+
+    // 退出批量编辑模式
+    exitBatchEditMode()
+
+  } catch (error) {
+    if (error !== 'cancel') {
+      batchEditLoading.value = false
+    }
+  }
+}
+
+// 批量删除
+async function batchDelete() {
+  if (batchSelectedPhotoIds.value.length === 0) {
+    ElMessage.warning('请先选择要删除的图片')
+    return
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除选中的 ${batchSelectedPhotoIds.value.length} 张图片吗？此操作不可恢复！`,
+      '批量删除确认',
+      {
+        confirmButtonText: '确定删除',
+        cancelButtonText: '取消',
+        type: 'warning',
+      }
+    )
+
+    const token = sessionStorage.getItem('token')
+    let successCount = 0
+    let failCount = 0
+
+    for (const photoId of batchSelectedPhotoIds.value) {
+      try {
+        await deletePhoto(photoId)
+        successCount++
+      } catch (error) {
+        failCount++
+        console.error(`删除图片 ${photoId} 失败:`, error)
+      }
+    }
+
+    if (successCount > 0) {
+      ElMessage.success(`成功删除 ${successCount} 张图片` + (failCount > 0 ? `，失败 ${failCount} 张` : ''))
+      // 刷新照片列表
+      fetchPhotos()
+    } else {
+      ElMessage.error('所有图片删除失败')
+    }
+
+    // 退出批量编辑模式
+    exitBatchEditMode()
+
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('批量删除失败:', error)
+    }
+  }
+}
+
+// 下载单张图片
+async function downloadPhoto(photo) {
+  try {
+    const imageUrl = fixImageUrl(photo.image)
+    const filename = photo.description ? `${photo.description}.jpg` : `photo_${photo.id}.jpg`
+    
+    // 检测是否为移动设备
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+    
+    if (isMobile) {
+      // 移动端：直接下载
+      const link = document.createElement('a')
+      link.href = imageUrl
+      link.download = filename
+      link.target = '_blank'
+      
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      
+      ElMessage.success('开始下载图片')
+    } else {
+      // 桌面端：使用 File System Access API 或 fetch + showSaveFilePicker
+      try {
+        // 检查浏览器是否支持 showSaveFilePicker
+        if ('showSaveFilePicker' in window) {
+          // 获取图片数据
+          const response = await fetch(imageUrl)
+          const blob = await response.blob()
+          
+          // 显示保存文件对话框
+          const fileHandle = await window.showSaveFilePicker({
+            suggestedName: filename,
+            types: [{
+              description: '图片文件',
+              accept: {
+                'image/jpeg': ['.jpg', '.jpeg'],
+                'image/png': ['.png'],
+                'image/gif': ['.gif'],
+                'image/webp': ['.webp']
+              }
+            }]
+          })
+          
+          // 写入文件
+          const writable = await fileHandle.createWritable()
+          await writable.write(blob)
+          await writable.close()
+          
+          ElMessage.success('图片已保存')
+        } else {
+          // 降级方案：直接下载
+          const link = document.createElement('a')
+          link.href = imageUrl
+          link.download = filename
+          link.target = '_blank'
+          
+          document.body.appendChild(link)
+          link.click()
+          document.body.removeChild(link)
+          
+          ElMessage.success('开始下载图片')
+        }
+      } catch (err) {
+        if (err.name === 'AbortError') {
+          // 用户取消了保存
+          ElMessage.info('已取消下载')
+        } else {
+          // 其他错误，使用降级方案
+          console.warn('使用降级下载方案:', err)
+          const link = document.createElement('a')
+          link.href = imageUrl
+          link.download = filename
+          link.target = '_blank'
+          
+          document.body.appendChild(link)
+          link.click()
+          document.body.removeChild(link)
+          
+          ElMessage.success('开始下载图片')
+        }
+      }
+    }
+  } catch (error) {
+    console.error('下载图片失败:', error)
+    ElMessage.error('下载图片失败')
+  }
+}
+
+// 批量下载图片
+async function batchDownload() {
+  if (batchSelectedPhotoIds.value.length === 0) {
+    ElMessage.warning('请先选择要下载的图片')
+    return
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      `确定要下载选中的 ${batchSelectedPhotoIds.value.length} 张图片吗？`,
+      '批量下载确认',
+      {
+        confirmButtonText: '确定下载',
+        cancelButtonText: '取消',
+        type: 'info',
+      }
+    )
+
+    // 检测是否为移动设备
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+    
+    ElMessage.info(`开始下载 ${batchSelectedPhotoIds.value.length} 张图片，请稍候...`)
+    
+    let successCount = 0
+    let failCount = 0
+
+    if (isMobile) {
+      // 移动端：逐个直接下载，添加延迟
+      for (let i = 0; i < batchSelectedPhotoIds.value.length; i++) {
+        const photoId = batchSelectedPhotoIds.value[i]
+        const photo = photos.value.find(p => p.id === photoId)
+        
+        if (photo) {
+          try {
+            const imageUrl = fixImageUrl(photo.image)
+            const filename = photo.description 
+              ? `${photo.description}_${photo.id}.jpg` 
+              : `photo_${photo.id}.jpg`
+            
+            const link = document.createElement('a')
+            link.href = imageUrl
+            link.download = filename
+            link.target = '_blank'
+            
+            document.body.appendChild(link)
+            link.click()
+            document.body.removeChild(link)
+            
+            successCount++
+            
+            // 添加延迟，避免浏览器阻止多个下载
+            if (i < batchSelectedPhotoIds.value.length - 1) {
+              await new Promise(resolve => setTimeout(resolve, 500))
+            }
+          } catch (error) {
+            failCount++
+            console.error(`下载图片 ${photoId} 失败:`, error)
+          }
+        } else {
+          failCount++
+        }
+      }
+    } else {
+      // 桌面端：检查是否支持文件系统访问API
+      const supportsSaveFilePicker = 'showSaveFilePicker' in window
+      const supportsDirectoryPicker = 'showDirectoryPicker' in window
+      
+      if (batchSelectedPhotoIds.value.length === 1 && supportsSaveFilePicker) {
+        // 单张图片：使用保存文件对话框
+        const photoId = batchSelectedPhotoIds.value[0]
+        const photo = photos.value.find(p => p.id === photoId)
+        
+        if (photo) {
+          try {
+            const imageUrl = fixImageUrl(photo.image)
+            const filename = photo.description 
+              ? `${photo.description}_${photo.id}.jpg` 
+              : `photo_${photo.id}.jpg`
+            
+            const response = await fetch(imageUrl)
+            const blob = await response.blob()
+            
+            const fileHandle = await window.showSaveFilePicker({
+              suggestedName: filename,
+              types: [{
+                description: '图片文件',
+                accept: {
+                  'image/jpeg': ['.jpg', '.jpeg'],
+                  'image/png': ['.png'],
+                  'image/gif': ['.gif'],
+                  'image/webp': ['.webp']
+                }
+              }]
+            })
+            
+            const writable = await fileHandle.createWritable()
+            await writable.write(blob)
+            await writable.close()
+            
+            successCount = 1
+            ElMessage.success('图片已保存')
+          } catch (err) {
+            if (err.name === 'AbortError') {
+              ElMessage.info('已取消下载')
+              return
+            }
+            failCount = 1
+            console.error(`保存图片失败:`, err)
+          }
+        }
+      } else if (supportsDirectoryPicker && batchSelectedPhotoIds.value.length > 1) {
+        // 多张图片：使用选择文件夹对话框
+        try {
+          const dirHandle = await window.showDirectoryPicker({
+            mode: 'readwrite',
+            startIn: 'downloads'
+          })
+          
+          ElMessage.info('正在保存图片到选定文件夹...')
+          
+          // 逐个保存图片到选定的文件夹
+          for (const photoId of batchSelectedPhotoIds.value) {
+            const photo = photos.value.find(p => p.id === photoId)
+            
+            if (photo) {
+              try {
+                const imageUrl = fixImageUrl(photo.image)
+                const filename = photo.description 
+                  ? `${photo.description}_${photo.id}.jpg` 
+                  : `photo_${photo.id}.jpg`
+                
+                // 获取图片数据
+                const response = await fetch(imageUrl)
+                const blob = await response.blob()
+                
+                // 在选定的文件夹中创建文件
+                const fileHandle = await dirHandle.getFileHandle(filename, { create: true })
+                const writable = await fileHandle.createWritable()
+                await writable.write(blob)
+                await writable.close()
+                
+                successCount++
+              } catch (error) {
+                failCount++
+                console.error(`保存图片 ${photoId} 失败:`, error)
+              }
+            } else {
+              failCount++
+            }
+          }
+        } catch (err) {
+          if (err.name === 'AbortError') {
+            ElMessage.info('已取消下载')
+            return
+          }
+          console.error('选择文件夹失败:', err)
+          ElMessage.error('选择文件夹失败，将使用默认下载方式')
+          
+          // 降级到传统下载方式
+          for (let i = 0; i < batchSelectedPhotoIds.value.length; i++) {
+            const photoId = batchSelectedPhotoIds.value[i]
+            const photo = photos.value.find(p => p.id === photoId)
+            
+            if (photo) {
+              try {
+                const imageUrl = fixImageUrl(photo.image)
+                const filename = photo.description 
+                  ? `${photo.description}_${photo.id}.jpg` 
+                  : `photo_${photo.id}.jpg`
+                
+                const link = document.createElement('a')
+                link.href = imageUrl
+                link.download = filename
+                link.target = '_blank'
+                
+                document.body.appendChild(link)
+                link.click()
+                document.body.removeChild(link)
+                
+                successCount++
+                
+                if (i < batchSelectedPhotoIds.value.length - 1) {
+                  await new Promise(resolve => setTimeout(resolve, 300))
+                }
+              } catch (error) {
+                failCount++
+                console.error(`下载图片 ${photoId} 失败:`, error)
+              }
+            } else {
+              failCount++
+            }
+          }
+        }
+      } else {
+        // 不支持文件夹选择API：使用传统下载方式
+        for (let i = 0; i < batchSelectedPhotoIds.value.length; i++) {
+          const photoId = batchSelectedPhotoIds.value[i]
+          const photo = photos.value.find(p => p.id === photoId)
+          
+          if (photo) {
+            try {
+              const imageUrl = fixImageUrl(photo.image)
+              const filename = photo.description 
+                ? `${photo.description}_${photo.id}.jpg` 
+                : `photo_${photo.id}.jpg`
+              
+              const link = document.createElement('a')
+              link.href = imageUrl
+              link.download = filename
+              link.target = '_blank'
+              
+              document.body.appendChild(link)
+              link.click()
+              document.body.removeChild(link)
+              
+              successCount++
+              
+              if (i < batchSelectedPhotoIds.value.length - 1) {
+                await new Promise(resolve => setTimeout(resolve, 300))
+              }
+            } catch (error) {
+              failCount++
+              console.error(`下载图片 ${photoId} 失败:`, error)
+            }
+          } else {
+            failCount++
+          }
+        }
+      }
+    }
+
+    if (successCount > 0) {
+      ElMessage.success(`成功下载 ${successCount} 张图片` + (failCount > 0 ? `，失败 ${failCount} 张` : ''))
+    } else if (failCount > 0) {
+      ElMessage.error('所有图片下载失败')
+    }
+
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('批量下载失败:', error)
+    }
+  }
+}
+
 // 集合轮播相关
 const selectedPhotoIds = ref([])
 const batchCarouselVisible = ref(false)
@@ -1478,6 +2131,30 @@ onMounted(() => {
   cursor: pointer;
   border: 2px solid #fff;
 }
+
+/* 批量编辑选择框样式 */
+.photo-batch-check {
+  position: absolute;
+  left: 12px;
+  top: 12px;
+  width: 32px;
+  height: 32px;
+  background: rgba(64, 158, 255, 0.3);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+  cursor: pointer;
+  border: 2px solid #409eff;
+  transition: all 0.3s;
+}
+
+.photo-batch-check:hover {
+  background: rgba(64, 158, 255, 0.5);
+  transform: scale(1.1);
+}
+
 .photo-check-mark {
   color: #42b983;
   font-size: 20px;
