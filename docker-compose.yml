@@ -18,6 +18,7 @@ services:
       - DB_PASSWORD=password
       - DB_HOST=db  # 关键：这里使用服务名 db 作为主机名
       - DB_PORT=3306
+      - DOUBAO_API_KEY=${DOUBAO_API_KEY:-85fa8223-1fb5-4f2e-bbe5-90f8d1898c0f}  # 课程作业专用：提供默认值
     depends_on:
       - db  # 确保 backend 在 db 启动之后再启动
 

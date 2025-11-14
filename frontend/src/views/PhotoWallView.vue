@@ -301,8 +301,8 @@
               <span v-else>无</span>
             </p>
             <div style="margin-top: 16px; display: flex; justify-content: center; gap: 24px;">
-              <el-button type="primary" @click="showPrev" :disabled="currentPreviewIndex === 0">上一张</el-button>
-              <el-button type="primary" @click="showNext" :disabled="currentPreviewIndex === photos.length - 1">下一张</el-button>
+              <el-button type="primary" @click="showPrev">上一张</el-button>
+              <el-button type="primary" @click="showNext">下一张</el-button>
               <el-button type="info" @click="closePreview">关闭</el-button>
             </div>
           </div>
@@ -455,6 +455,7 @@ async function submitSmartSearch() {
     if (res.data && res.data.photos) {
       photos.value = res.data.photos
       smartSearchDialogVisible.value = false
+      ElMessage.success(`搜索完成！找到 ${res.data.photos.length} 张相关照片`)
     } else if (res.data && res.data.error) {
       ElMessage.error(res.data.error)
     }
@@ -464,6 +465,7 @@ async function submitSmartSearch() {
     smartSearchLoading.value = false
   }
 }
+
 const batchCarouselRef = ref(null)
 const batchCarouselWrapper = ref(null)
 
@@ -1250,6 +1252,11 @@ function showPrev() {
   if (currentPreviewIndex.value > 0) {
     currentPreviewIndex.value--;
     updatePreviewPhoto();
+  } else {
+    // 在第一张时，循环到最后一张
+    currentPreviewIndex.value = photos.value.length - 1;
+    updatePreviewPhoto();
+    ElMessage.info('已经从最后一张返回至第一张');
   }
 }
 
@@ -1257,6 +1264,11 @@ function showNext() {
   if (currentPreviewIndex.value < photos.value.length - 1) {
     currentPreviewIndex.value++;
     updatePreviewPhoto();
+  } else {
+    // 在最后一张时，循环到第一张
+    currentPreviewIndex.value = 0;
+    updatePreviewPhoto();
+    ElMessage.info('已经是最后一张，已返回第一张');
   }
 }
 

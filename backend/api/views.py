@@ -61,7 +61,10 @@ def mcp_search(request):
 
     # 使用豆包模型（OpenAI客户端）进行自然语言解析
     from openai import OpenAI
-    api_key = "85fa8223-1fb5-4f2e-bbe5-90f8d1898c0f"  # 可改为 os.environ.get("DOUBAO_API_KEY")
+    api_key = os.environ.get("DOUBAO_API_KEY")
+    if not api_key:
+        return Response({'error': 'AI服务配置错误：未设置API密钥'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
     base_url = "https://ark.cn-beijing.volces.com/api/v3"
     model = "doubao-1.5-vision-lite-250315"  # 文本推理也可用此模型
     try:
@@ -326,12 +329,11 @@ class AnalyzeTagsView(APIView):
         if not photo.image or not hasattr(photo.image, 'url'):
             return Response({'error': '照片文件不存在URL'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # 从环境变量获取正确的 Key
-        api_key = "85fa8223-1fb5-4f2e-bbe5-90f8d1898c0f" 
-        # api_key = os.environ.get("DOUBAO_API_KEY") 
+        # 从环境变量获取API Key
+        api_key = os.environ.get("DOUBAO_API_KEY")
         if not api_key:
             print("错误：DOUBAO_API_KEY 环境变量未设置。")
-            return Response({'error': 'AI服务配置错误'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({'error': 'AI服务配置错误：未设置API密钥'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         base_url = "https://ark.cn-beijing.volces.com/api/v3"
         image_url = request.build_absolute_uri(photo.image.url) # 确保是绝对路径
