@@ -18,6 +18,14 @@ export default defineConfig({
   server: {
     host: '0.0.0.0', // 允许外部访问
     port: 5173,
+    watch: {
+      usePolling: true, // Docker 环境需要轮询
+    },
+    hmr: {
+      host: 'localhost', // HMR WebSocket 使用 localhost
+      port: 5173,
+      protocol: 'ws', // 使用 ws 协议
+    },
     proxy: {
       '/api': {
         target: 'http://backend:8000', // 关键：指向后端容器

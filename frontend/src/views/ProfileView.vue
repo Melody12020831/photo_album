@@ -52,11 +52,40 @@ onMounted(() => {
 
 <style scoped>
 .profile-container {
-  max-width: 400px;
+  max-width: 520px;
   margin: 40px auto;
-  padding: 24px;
+  padding: 28px;
   background: #fff;
   border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  /* stronger shadow so the white card reads clearly on dark page background */
+  box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+}
+
+.profile-container h2 {
+  font-size: 1.25rem; /* ~20px */
+  font-weight: 700;
+  color: #222; /* darker for better contrast */
+  margin: 0 0 12px 0;
+}
+
+/* Element Plus descriptions styling: use :deep to override inside scoped CSS */
+:deep(.el-descriptions__title) {
+  font-size: 1rem;
+  color: #222;
+  font-weight: 600;
+}
+:deep(.el-descriptions__label) {
+  font-size: 0.95rem;
+  color: #444;
+  font-weight: 600;
+}
+:deep(.el-descriptions__content) {
+  font-size: 1rem;
+  color: #222;
+}
+
+/* Slightly larger buttons for readability */
+:deep(.el-button) {
+  font-size: 14px;
 }
 </style>

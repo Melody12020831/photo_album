@@ -76,6 +76,29 @@ onMounted(fetchTags)
   background: #fff;
   padding: 32px;
   border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.35); /* stronger shadow for contrast on dark background */
+}
+
+.tag-manager h2 {
+  color: #222; /* darker title for readability */
+  font-size: 1.6rem;
+  font-weight: 700;
+  margin: 0 0 16px 0;
+}
+
+/* Increase contrast for Element Plus labels/inputs inside this panel */
+.tag-manager :deep(.el-form-item__label) {
+  color: #444;
+  font-size: 0.95rem;
+}
+.tag-manager :deep(.el-input__inner) {
+  font-size: 0.95rem;
+}
+.tag-manager :deep(.el-table) {
+  font-size: 0.95rem;
+}
+
+.tag-manager .el-button {
+  min-width: 64px;
 }
 </style>

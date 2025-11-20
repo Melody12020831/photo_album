@@ -1,93 +1,123 @@
-
 <script setup>
-import { RouterLink, RouterView } from 'vue-router'
-import { ref, computed } from 'vue'
+import { RouterLink, RouterView, useRouter } from 'vue-router'
+import { ref, onMounted } from 'vue'
 
-// 使用 sessionStorage 替代 localStorage，关闭网页后自动退出登录
+const router = useRouter()
 const token = ref(sessionStorage.getItem('token'))
 const username = ref(sessionStorage.getItem('username'))
 
-window.addEventListener('storage', () => {
+const updateAuthStatus = () => {
   token.value = sessionStorage.getItem('token')
   username.value = sessionStorage.getItem('username')
+}
+
+const logout = () => {
+  sessionStorage.removeItem('token')
+  sessionStorage.removeItem('username')
+  updateAuthStatus()
+  router.push('/login')
+}
+
+onMounted(() => {
+  updateAuthStatus()
+  window.addEventListener('storage', updateAuthStatus)
+  // Custom event to handle login/logout from other components
+  window.addEventListener('auth-change', updateAuthStatus)
 })
 </script>
 
 <template>
-  <header>
-    <img alt="Vue logo" class="logo" src="@/assets/logo.svg" width="125" height="125" />
-    <nav>
-      <RouterLink to="/">Home</RouterLink>
-      <RouterLink to="/about">About</RouterLink>
-      <RouterLink to="/register">注册</RouterLink>
-      <RouterLink to="/recover">找回账号</RouterLink>
-      <RouterLink v-if="!token" to="/login">登录</RouterLink>
-      <RouterLink v-else to="/profile">个人中心</RouterLink>
-    </nav>
-  </header>
-  <RouterView />
+  <div id="app-layout">
+    <header class="main-header">
+      <div class="header-content">
+        <div class="logo-container">
+          <img alt="Vue logo" class="logo" src="@/assets/logo.jpg" width="40" height="40" />
+          <span class="site-title">Photo Album</span>
+        </div>
+        <nav>
+          <RouterLink to="/">Home</RouterLink>
+          <RouterLink to="/photos">照片墙</RouterLink>
+          <template v-if="!token">
+            <RouterLink to="/login">登录</RouterLink>
+            <RouterLink to="/register">注册</RouterLink>
+          </template>
+          <template v-else>
+            <RouterLink to="/profile">个人中心 ({{ username }})</RouterLink>
+            <a href="#" @click.prevent="logout">退出登录</a>
+          </template>
+        </nav>
+      </div>
+    </header>
+    <main class="main-content">
+      <RouterView />
+    </main>
+  </div>
 </template>
 
 <style scoped>
-header {
-  line-height: 1.5;
-  max-height: 100vh;
+#app-layout {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background-color: var(--color-background);
+}
+
+.main-header {
+  background-color: var(--color-background-soft);
+  border-bottom: 1px solid var(--color-border);
+  padding: 0 2rem;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  width: 100%;
+}
+
+.header-content {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.logo-container {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
 }
 
 .logo {
   display: block;
-  margin: 0 auto 2rem;
+}
+
+.site-title {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: var(--color-heading);
 }
 
 nav {
-  width: 100%;
-  font-size: 12px;
-  text-align: center;
-  margin-top: 2rem;
-}
-
-nav a.router-link-exact-active {
-  color: var(--color-text);
-}
-
-nav a.router-link-exact-active:hover {
-  background-color: transparent;
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  font-size: 1rem;
 }
 
 nav a {
-  display: inline-block;
-  padding: 0 1rem;
-  border-left: 1px solid var(--color-border);
+  color: var(--color-text);
+  text-decoration: none;
+  transition: color 0.3s;
 }
 
-nav a:first-of-type {
-  border: 0;
+nav a:hover,
+nav a.router-link-exact-active {
+  color: var(--color-tint);
 }
 
-@media (min-width: 1024px) {
-  header {
-    display: flex;
-    place-items: center;
-    padding-right: calc(var(--section-gap) / 2);
-  }
-
-  .logo {
-    margin: 0 2rem 0 0;
-  }
-
-  header .wrapper {
-    display: flex;
-    place-items: flex-start;
-    flex-wrap: wrap;
-  }
-
-  nav {
-    text-align: left;
-    margin-left: -1rem;
-    font-size: 1rem;
-
-    padding: 1rem 0;
-    margin-top: 1rem;
-  }
+.main-content {
+  flex-grow: 1;
+  width: 100%;
 }
 </style>

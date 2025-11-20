@@ -14,14 +14,7 @@ const router = createRouter({
       path: '/tags',
       name: 'tags',
       component: TagManagerView,
-    },
-    {
-      path: '/about',
-      name: 'about',
-      // route level code-splitting
-      // this generates a separate chunk (About.[hash].js) for this route
-      // which is lazy-loaded when the route is visited.
-      component: () => import('../views/AboutView.vue'),
+      meta: { requiresAuth: true },
     },
     {
       path: '/register',
@@ -37,23 +30,42 @@ const router = createRouter({
       path: '/upload',
       name: 'upload',
       component: () => import('../views/PhotoUploadView.vue'),
+      meta: { requiresAuth: true },
     },
     {
       path: '/profile',
       name: 'profile',
       component: () => import('../views/ProfileView.vue'),
+      meta: { requiresAuth: true },
     },
     {
       path: '/photos',
       name: 'photos',
       component: () => import('../views/PhotoWallView.vue'),
-    }
-    ,{
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/photos-old',
+      name: 'photos-old',
+      component: () => import('../views/PhotoWallView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
       path: '/recover',
       name: 'recover',
       component: () => import('../views/RecoverView.vue'),
-    }
+    },
   ],
+})
+
+router.beforeEach((to, from, next) => {
+  const loggedIn = sessionStorage.getItem('token')
+
+  if (to.matched.some(record => record.meta.requiresAuth) && !loggedIn) {
+    next('/login')
+  } else {
+    next()
+  }
 })
 
 export default router
