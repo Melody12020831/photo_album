@@ -44,49 +44,26 @@ cd photo_album
 # 或者直接下载ZIP包并解压
 ```
 
-### 2️⃣ 配置环境变量
+### 2️⃣ 导入镜像和数据库
 
-**复制环境变量模板：**
+```shell
+# 导入镜像
+docker load -i backend.tar
+docker load -i frontend.tar
+docker load -i db.tar
 
-Windows (PowerShell):
-
-```powershell
-Copy-Item .env.example .env
+# 导入数据库（启动数据库容器后）
+docker cp photo_album_db.sql photo_album_db:/photo_album_db.sql
+docker exec -it photo_album_db bash
+mysql -uuser -ppassword photo_album_db < /photo_album_db.sql
 ```
-
-Linux/Mac:
-
-```bash
-cp .env.example .env
-```
-
-**编辑 `.env` 文件：**
-
-使用任意文本编辑器打开 `.env` 文件，填入你的API密钥：
-
-```env
-# 将 your-api-key-here 替换为你的真实密钥
-DOUBAO_API_KEY=your-api-key-here
-
-# 数据库配置（通常不需要修改）
-DB_NAME=photo_album_db
-DB_USER=user
-DB_PASSWORD=password
-DB_HOST=db
-DB_PORT=3306
-```
-
-⚠️ **重要提示：**
-- 不要将包含真实API密钥的 `.env` 文件分享给他人
-- 不要将 `.env` 文件提交到Git仓库
-- 妥善保管你的API密钥
 
 ### 3️⃣ 启动应用
 
 在项目根目录执行：
 
 ```bash
-docker-compose up -d
+docker-compose up --build
 ```
 
 首次启动需要下载镜像和构建，大约需要 5-10 分钟。
@@ -128,7 +105,7 @@ exit
 
 ### 启动服务
 ```bash
-docker-compose up -d
+docker-compose up --build
 ```
 
 ### 停止服务
@@ -154,6 +131,11 @@ docker-compose logs -f frontend
 ### 重启服务
 ```bash
 docker-compose restart
+```
+
+### 重启前端
+```bash
+docker-compose restart frontend
 ```
 
 ### 重新构建并启动

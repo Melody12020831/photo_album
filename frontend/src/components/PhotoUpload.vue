@@ -1,812 +1,473 @@
 <template>
-  <div class="photo-upload">
-    <el-form ref="formRef" label-width="80px">
-      <el-form-item label="选择图片">
+  <div class="upload-container" :class="{ 'dark': isDark }">
+    <div class="top-bar-absolute">
+      <el-switch
+        v-model="isDark"
+        inline-prompt
+        :active-icon="Moon"
+        :inactive-icon="Sunny"
+        style="--el-switch-on-color: #4c4d4f; --el-switch-off-color: #d4b483"
+        @change="toggleTheme"
+      />
+    </div>
+
+    <div class="upload-header">
+      <h2>上传照片</h2>
+      <p>添加到您的速写本 · EXIF 自动识别 · AI 智能标签</p>
+    </div>
+
+    <el-form ref="formRef" label-position="top">
+      <!-- 拖拽上传区域 -->
+      <div 
+        class="drop-zone"
+        :class="{ 'is-dragover': isDragOver }"
+        @dragover.prevent="isDragOver = true"
+        @dragleave.prevent="isDragOver = false"
+        @drop.prevent="handleDrop"
+        @click="triggerFileInput"
+      >
+        <el-icon class="upload-icon"><UploadFilled /></el-icon>
+        <div class="upload-text">
+          <span>点击或拖拽图片到此处</span>
+          <p class="sub-text">支持 JPG, PNG, WebP 等格式</p>
+        </div>
         <input 
           ref="fileInputRef" 
           type="file" 
           accept="image/*" 
           multiple 
+          class="hidden-input"
           @change="onFileChange" 
         />
-        <div class="file-hint">可同时选择多张图片</div>
-      </el-form-item>
+      </div>
 
-      <!-- 图片预览列表 -->
-      <div v-if="photoItems.length > 0" class="photo-items">
-        <el-card 
-          v-for="(item, index) in photoItems" 
-          :key="index" 
-          class="photo-item"
-          shadow="hover"
-        >
-          <div class="photo-item-header">
-            <span class="photo-number">图片 {{ index + 1 }}</span>
-            <el-button 
-              type="danger" 
-              size="small" 
-              text
-              @click="removePhotoItem(index)"
-            >
-              删除
-            </el-button>
-          </div>
+      <!-- 功能操作栏 -->
+      <div v-if="photoItems.length > 0" class="action-bar">
+        <div class="left-actions">
+          <span class="selection-count">已选 {{ photoItems.length }} 张图片</span>
+          <el-button link class="theme-link-btn" @click="showBatchTagDialog">批量标签</el-button>
+          <el-divider direction="vertical" />
+          <el-button link class="theme-link-btn" @click="batchToggleAI(true)">全开 AI</el-button>
+          <el-button link class="theme-link-btn secondary" @click="batchToggleAI(false)">全关 AI</el-button>
+        </div>
+        <div class="right-actions">
+          <el-button type="danger" link @click="resetForm">清空</el-button>
+          <el-button type="primary" size="large" @click="onUploadAll" :loading="uploading" class="upload-btn">
+            开始上传
+          </el-button>
+        </div>
+      </div>
 
-          <!-- 图片预览 -->
-          <div class="photo-preview">
+      <!-- 图片预览网格 -->
+      <transition-group name="list" tag="div" class="photo-grid">
+        <div v-for="(item, index) in photoItems" :key="item.previewUrl" class="photo-card">
+          <div class="photo-thumb">
             <img :src="item.previewUrl" :alt="item.file.name" />
+            <div class="overlay">
+              <el-button type="danger" circle size="small" @click.stop="removePhotoItem(index)">
+                <el-icon><Delete /></el-icon>
+              </el-button>
+            </div>
+            <div class="img-meta-badge" v-if="item.file.size">{{ formatSize(item.file.size) }}</div>
           </div>
-
-          <div class="photo-name">{{ item.file.name }}</div>
-
-          <!-- 描述 -->
-          <el-form-item label="描述" label-width="60px">
+          
+          <div class="photo-form">
             <el-input 
               v-model="item.description" 
-              placeholder="图片描述（可选）" 
-              type="textarea"
-              :rows="2"
+              placeholder="添加描述..." 
+              size="small"
+              class="desc-input theme-input"
             />
-          </el-form-item>
-
-          <!-- 标签 -->
-          <el-form-item label="标签" label-width="60px">
-            <div style="display: flex; gap: 8px;">
+            
+            <div class="tag-input-wrapper">
               <el-select
                 v-model="item.tags"
                 multiple
-                placeholder="请选择或输入标签"
-                style="flex: 1;"
-                :loading="tagLoading"
                 filterable
                 allow-create
                 default-first-option
+                placeholder="添加标签"
+                size="small"
+                class="tag-select theme-select"
               >
-                <el-option
-                  v-for="tag in tagOptions"
-                  :key="tag"
-                  :label="tag"
-                  :value="tag"
-                />
+                <el-option v-for="tag in tagOptions" :key="tag" :label="tag" :value="tag" />
               </el-select>
-              <el-button 
-                size="small" 
-                @click="createNewTagForItem(item)"
-              >
-                新建
-              </el-button>
+              <el-tooltip content="新建标签" placement="top">
+                <el-button size="small" circle @click="createNewTagForItem(item)">
+                  <el-icon><Plus /></el-icon>
+                </el-button>
+              </el-tooltip>
             </div>
-            <div v-if="tagOptions.length === 0" style="font-size: 12px; color: #909399; margin-top: 4px;">
-              暂无标签，请先创建
+
+            <div class="ai-switch">
+              <el-checkbox v-model="item.useAI" size="small" class="theme-checkbox">AI 分析</el-checkbox>
             </div>
-          </el-form-item>
-
-          <!-- AI分析选项 -->
-          <el-form-item label="AI分析" label-width="60px">
-            <el-checkbox v-model="item.useAI">上传后使用AI分析标签</el-checkbox>
-          </el-form-item>
-        </el-card>
-      </div>
-
-      <!-- 批量操作按钮 -->
-      <div v-if="photoItems.length > 0" class="batch-actions">
-        <el-button @click="showBatchTagDialog">批量添加标签</el-button>
-        <el-button @click="batchToggleAI(true)">全部启用AI</el-button>
-        <el-button @click="batchToggleAI(false)">全部禁用AI</el-button>
-      </div>
-
-      <el-form-item v-if="photoItems.length > 0">
-        <el-button 
-          type="primary" 
-          @click="onUploadAll" 
-          :loading="uploading"
-          size="large"
-        >
-          上传全部图片 ({{ photoItems.length }})
-        </el-button>
-      </el-form-item>
+          </div>
+        </div>
+      </transition-group>
     </el-form>
 
-    <div v-if="msg" :class="msgType">{{ msg }}</div>
-
-    <!-- 批量添加标签对话框 -->
-    <el-dialog
-      v-model="batchTagDialogVisible"
-      title="批量添加标签"
-      width="500px"
-    >
-      <div>
-        <p v-if="tagOptions.length === 0" style="color: #909399; margin-bottom: 12px;">
-          暂无标签，请先创建标签
-        </p>
-        <p v-else style="color: #606266; margin-bottom: 12px;">
-          已有 {{ tagOptions.length }} 个标签可选
-        </p>
-        <el-select
-          v-model="batchTags"
-          multiple
-          placeholder="选择或输入要批量添加的标签"
-          style="width: calc(100% - 90px);"
-          :loading="tagLoading"
-          filterable
-          allow-create
-          default-first-option
-        >
-          <el-option
-            v-for="tag in tagOptions"
-            :key="tag"
-            :label="tag"
-            :value="tag"
-          />
+    <!-- 批量标签对话框 -->
+    <el-dialog v-model="batchTagDialogVisible" title="批量添加标签" width="400px" class="custom-dialog">
+      <p class="dialog-desc">将标签添加到当前所有图片中</p>
+      <div class="flex-row" style="display: flex; gap: 8px;">
+        <el-select v-model="batchTags" multiple filterable allow-create default-first-option placeholder="选择或输入标签" style="flex: 1">
+          <el-option v-for="tag in tagOptions" :key="tag" :label="tag" :value="tag" />
         </el-select>
-        <el-button 
-          style="margin-left: 8px;" 
-          @click="createNewTagForBatch"
-        >
-          新建标签
-        </el-button>
+        <el-button @click="createNewTagForBatch">新建</el-button>
       </div>
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="batchTagDialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="applyBatchTags" :disabled="batchTags.length === 0">
-            应用到所有图片
-          </el-button>
+          <el-button type="primary" @click="applyBatchTags" :disabled="batchTags.length === 0">应用</el-button>
         </span>
       </template>
     </el-dialog>
 
-    <!-- AI分析对话框 -->
-    <el-dialog
-      v-model="aiDialogVisible"
-      title="AI 标签分析"
-      width="500px"
-      :before-close="handleAiDialogCancel"
-    >
-      <div v-loading="aiLoading">
-        <p class="ai-progress">正在分析第 {{ currentAIIndex + 1 }} / {{ aiQueue.length }} 张图片</p>
-        
-        <div v-if="suggestedTags.length > 0">
-          <p>AI 建议以下标签，请勾选：</p>
+    <el-dialog v-model="aiDialogVisible" title="AI 智能分析中" width="450px" :before-close="handleAiDialogCancel" class="custom-dialog">
+      <div v-loading="aiLoading" element-loading-text="AI 正在思考..." class="ai-content">
+        <p class="progress-text">正在分析第 <span>{{ currentAIIndex + 1 }}</span> / {{ aiQueue.length }} 张</p>
+        <div v-if="suggestedTags.length > 0" class="ai-suggestions">
+          <p class="sub-title">AI 建议标签：</p>
           <el-checkbox-group v-model="finalTagSelection">
-            <el-checkbox v-for="tag in suggestedTags" :key="tag" :label="tag" border />
+            <el-checkbox v-for="tag in suggestedTags" :key="tag" :label="tag" border size="small" class="theme-checkbox" />
           </el-checkbox-group>
         </div>
-        <p v-if="suggestedTags.length === 0 && !aiLoading">
-          AI 未分析出任何标签，您可以手动添加。
-        </p>
-        
-        <el-divider />
-        
-        <p>管理此图片的所有标签：</p>
-        <el-select
-          v-model="finalTagSelection"
-          multiple
-          placeholder="选择或输入标签"
-          style="width: calc(100% - 90px);"
-          :loading="tagLoading"
-          filterable
-          allow-create
-          default-first-option
-        >
-          <el-option
-            v-for="tag in allAvailableTags"
-            :key="tag"
-            :label="tag"
-            :value="tag"
-          />
+        <el-divider content-position="center">确认标签</el-divider>
+        <el-select v-model="finalTagSelection" multiple filterable allow-create default-first-option placeholder="最终确认的标签" style="width: 100%">
+          <el-option v-for="tag in allAvailableTags" :key="tag" :label="tag" :value="tag" />
         </el-select>
-        <el-button style="margin-left: 8px;" @click="createNewTag(finalTagSelection)">新建</el-button>
       </div>
-
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="skipCurrentAI">跳过</el-button>
-          <el-button type="primary" @click="handleAiDialogConfirm">
-            保存标签并继续
-          </el-button>
+          <el-button type="primary" @click="handleAiDialogConfirm">保存并继续</el-button>
         </span>
       </template>
     </el-dialog>
-
   </div>
 </template>
 
 <script setup>
-
 import { ref, onMounted, computed } from 'vue'
 import axios from 'axios'
-import { ElMessageBox, ElMessage, ElDialog, ElCheckbox, ElCheckboxGroup, ElDivider } from 'element-plus'
+import { ElMessageBox, ElMessage } from 'element-plus'
+import { UploadFilled, Delete, Plus, Moon, Sunny } from '@element-plus/icons-vue' 
 import EXIF from 'exif-js'
 
 const formRef = ref()
-const photoItems = ref([]) // 存储多张图片的信息
+const photoItems = ref([])
 const tagOptions = ref([])
-const tagLoading = ref(false)
-
 const fileInputRef = ref(null)
 const uploading = ref(false)
-const msg = ref('')
-const msgType = ref('')
+const isDragOver = ref(false)
+const isDark = ref(false)
 
-// 批量标签对话框
+// 对话框相关状态
 const batchTagDialogVisible = ref(false)
 const batchTags = ref([])
-
-// AI分析相关
 const aiDialogVisible = ref(false)
 const aiLoading = ref(false)
-const aiQueue = ref([]) // 需要AI分析的图片队列
+const aiQueue = ref([])
 const currentAIIndex = ref(0)
 const currentPhoto = ref(null)
 const suggestedTags = ref([])
 const finalTagSelection = ref([])
 
-// 计算属性，合并用户已有标签和AI建议标签
+
+// 计算所有可用标签（用户标签、AI建议标签、最终选择标签的合集）
 const allAvailableTags = computed(() => {
   const allTags = new Set([...tagOptions.value, ...suggestedTags.value, ...finalTagSelection.value]);
   return Array.from(allTags).sort();
 });
 
-// 获取用户所有标签
+
+// 组件挂载时初始化用户标签和主题
+onMounted(() => {
+  fetchUserTags()
+  initTheme()
+})
+
+
+// 初始化主题（深色/浅色）
+function initTheme() {
+  const storedTheme = localStorage.getItem('theme')
+  if (storedTheme) {
+    isDark.value = storedTheme === 'dark'
+  } else {
+    isDark.value = window.matchMedia('(prefers-color-scheme: dark)').matches
+  }
+  applyTheme(isDark.value)
+}
+
+
+// 切换主题（深色/浅色）
+function toggleTheme(val) {
+  isDark.value = val
+  localStorage.setItem('theme', val ? 'dark' : 'light')
+  applyTheme(val)
+}
+
+
+// 应用主题样式到页面
+function applyTheme(dark) {
+  if (dark) {
+    document.documentElement.classList.add('dark')
+    document.body.style.backgroundColor = '#1a1a1a'
+  } else {
+    document.documentElement.classList.remove('dark')
+    document.body.style.backgroundColor = '#fdfaf4'
+  }
+}
+
+
+// 获取当前用户的所有标签
 async function fetchUserTags() {
   const token = sessionStorage.getItem('token')
   if (!token) return
-  tagLoading.value = true
   try {
-    const res = await axios.get('/api/user_tags/', {
-      headers: { Authorization: `Token ${token}` }
-    })
+    const res = await axios.get('/api/user_tags/', { headers: { Authorization: `Token ${token}` } })
     tagOptions.value = res.data.tags || []
-  } catch (e) {
-    tagOptions.value = []
-  } finally {
-    tagLoading.value = false
-  }
+  } catch (e) { tagOptions.value = [] }
 }
 
-// 创建新标签（通用函数）
-async function createNewTag(targetTagList) {
-  try {
-    const { value } = await ElMessageBox.prompt('请输入新的标签名', '新建标签', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      inputPattern: /\S/,
-      inputErrorMessage: '标签名不能为空'
-    });
 
-    if (value) {
-      const token = sessionStorage.getItem('token');
-      const res = await axios.post('/api/user_tags/', { tag: value }, {
-        headers: { Authorization: `Token ${token}` }
-      });
-
-      ElMessage.success(res.data.msg || '操作成功');
-      
-      await fetchUserTags();
-      if (!targetTagList.includes(value)) {
-        targetTagList.push(value);
-      }
-    }
-  } catch (error) {
-    if (error !== 'cancel') {
-      const errorMsg = error.response?.data?.error || '创建失败';
-      ElMessage.error(errorMsg);
-    }
-  }
+// 处理拖拽上传图片事件
+function handleDrop(e) {
+  isDragOver.value = false
+  const files = e.dataTransfer.files
+  if (files.length) processFiles(files)
 }
 
-// 为单个图片项创建新标签
-async function createNewTagForItem(item) {
-  try {
-    const { value } = await ElMessageBox.prompt('请输入新的标签名', '新建标签', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      inputPattern: /\S/,
-      inputErrorMessage: '标签名不能为空'
-    });
+// 触发文件选择框点击
+function triggerFileInput() { fileInputRef.value.click() }
 
-    if (value) {
-      const token = sessionStorage.getItem('token');
-      const res = await axios.post('/api/user_tags/', { tag: value }, {
-        headers: { Authorization: `Token ${token}` }
-      });
+// 处理文件选择变化事件
+function onFileChange(e) { processFiles(e.target.files); e.target.value = '' }
 
-      ElMessage.success(res.data.msg || '标签创建成功');
-      
-      // 刷新标签列表
-      await fetchUserTags();
-      
-      // 自动添加到当前图片的标签中
-      if (!item.tags.includes(value)) {
-        item.tags.push(value);
-      }
-    }
-  } catch (error) {
-    if (error !== 'cancel') {
-      const errorMsg = error.response?.data?.error || '创建失败';
-      ElMessage.error(errorMsg);
-    }
-  }
+// 格式化文件大小显示
+function formatSize(size) {
+  if(size < 1024) return size + ' B'
+  if(size < 1024*1024) return (size/1024).toFixed(1) + ' KB'
+  return (size/(1024*1024)).toFixed(1) + ' MB'
 }
 
-// 处理文件选择（支持多选）
-async function onFileChange(e) {
-  const files = Array.from(e.target.files)
-  if (files.length === 0) return
-
-  for (const file of files) {
-    // 创建预览URL
+// 处理用户选择或拖拽的图片文件
+async function processFiles(files) {
+  for (const file of Array.from(files)) {
+    if (!file.type.startsWith('image/')) continue
     const previewUrl = URL.createObjectURL(file)
-    
-    // 初始化图片项
-    const photoItem = {
-      file: file,
-      previewUrl: previewUrl,
-      description: '',
-      tags: [],
-      useAI: true, // 默认启用AI分析
-      exifProcessed: false
-    }
-
+    const photoItem = { file: file, previewUrl: previewUrl, description: '', tags: [], useAI: true }
     photoItems.value.push(photoItem)
-
-    // 异步读取EXIF信息
     processEXIF(file, photoItem)
   }
 }
 
-// 处理EXIF信息
+// 解析图片 EXIF 信息并自动添加标签
 async function processEXIF(file, photoItem) {
   EXIF.getData(file, async function() {
     const make = EXIF.getTag(this, "Make");
     const model = EXIF.getTag(this, "Model");
-    const dateTime = EXIF.getTag(this, "DateTimeOriginal");
-
-    const potentialTags = [make, model, dateTime].filter(tag => tag && typeof tag === 'string' && tag.trim());
-    
-    const newExifTags = potentialTags.filter(
-      tag => !tagOptions.value.includes(tag) && !photoItem.tags.includes(tag)
-    );
-    
-    if (newExifTags.length > 0 && !photoItem.exifProcessed) {
-      photoItem.exifProcessed = true
-      try {
-        await ElMessageBox.confirm(
-          `从图片 "${file.name}" 中识别出：[${newExifTags.join(', ')}]，是否将它们创建为新标签并添加到此图片？`,
-          '发现新标签',
-          {
-            confirmButtonText: '是，创建并添加',
-            cancelButtonText: '否，忽略',
-            type: 'info',
-          }
-        )
-        
-        const token = sessionStorage.getItem('token');
-        for (const tag of newExifTags) {
-          try {
-            await axios.post('/api/user_tags/', { tag }, {
-              headers: { Authorization: `Token ${token}` }
-            });
-            if (!photoItem.tags.includes(tag)) {
-              photoItem.tags.push(tag);
-            }
-          } catch (e) {
-            console.error('创建EXIF标签失败:', e)
-          }
-        }
-        await fetchUserTags();
-
-      } catch (action) {
-        console.log('用户选择不添加EXIF标签。');
-      }
+    const potentialTags = [make, model].filter(t => t && typeof t.trim === 'function' && t.trim());
+    if (potentialTags.length > 0) {
+      potentialTags.forEach(tag => { if(!photoItem.tags.includes(tag)) photoItem.tags.push(tag) })
     }
   });
 }
 
-// 删除图片项
-function removePhotoItem(index) {
-  // 释放预览URL
-  URL.revokeObjectURL(photoItems.value[index].previewUrl)
-  photoItems.value.splice(index, 1)
-  
-  // 如果没有图片了，重置文件输入框
-  if (photoItems.value.length === 0 && fileInputRef.value) {
-    fileInputRef.value.value = null
-  }
-}
+// 移除指定索引的图片
+function removePhotoItem(index) { URL.revokeObjectURL(photoItems.value[index].previewUrl); photoItems.value.splice(index, 1) }
 
-// 批量添加标签对话框
-function showBatchTagDialog() {
-  batchTags.value = []
-  batchTagDialogVisible.value = true
-}
+// 重置上传表单，清空所有图片
+function resetForm() { photoItems.value.forEach(item => URL.revokeObjectURL(item.previewUrl)); photoItems.value = []; if (fileInputRef.value) fileInputRef.value.value = null }
 
-// 为批量标签创建新标签
-async function createNewTagForBatch() {
+// 为单张图片新建标签
+async function createNewTagForItem(item) { promptAndCreateTag((tag) => { if(!item.tags.includes(tag)) item.tags.push(tag) }) }
+
+// 批量新建标签
+async function createNewTagForBatch() { promptAndCreateTag((tag) => { if(!batchTags.value.includes(tag)) batchTags.value.push(tag) }) }
+
+// 弹窗输入新标签并保存到服务器
+async function promptAndCreateTag(callback) {
   try {
-    const { value } = await ElMessageBox.prompt('请输入新的标签名', '新建标签', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      inputPattern: /\S/,
-      inputErrorMessage: '标签名不能为空'
-    });
-
+    const { value } = await ElMessageBox.prompt('标签名', '新建', { confirmButtonText: '确定', cancelButtonText: '取消', inputPattern: /\S/ });
     if (value) {
       const token = sessionStorage.getItem('token');
-      const res = await axios.post('/api/user_tags/', { tag: value }, {
-        headers: { Authorization: `Token ${token}` }
-      });
-
-      ElMessage.success(res.data.msg || '标签创建成功');
-      
-      // 刷新标签列表
+      await axios.post('/api/user_tags/', { tag: value }, { headers: { Authorization: `Token ${token}` } });
+      ElMessage.success('创建成功');
       await fetchUserTags();
-      
-      // 自动添加到批量标签选择中
-      if (!batchTags.value.includes(value)) {
-        batchTags.value.push(value);
-      }
+      callback(value);
     }
-  } catch (error) {
-    if (error !== 'cancel') {
-      const errorMsg = error.response?.data?.error || '创建失败';
-      ElMessage.error(errorMsg);
-    }
-  }
+  } catch (e) { /* cancel */ }
 }
 
-// 应用批量标签
-function applyBatchTags() {
-  if (batchTags.value.length === 0) {
-    ElMessage.warning('请先选择要添加的标签')
-    return
-  }
-  
-  photoItems.value.forEach(item => {
-    batchTags.value.forEach(tag => {
-      if (!item.tags.includes(tag)) {
-        item.tags.push(tag)
-      }
-    })
-  })
-  batchTagDialogVisible.value = false
-  ElMessage.success(`已为所有图片添加 ${batchTags.value.length} 个标签`)
-}
+// 显示批量标签对话框
+function showBatchTagDialog() { batchTags.value = []; batchTagDialogVisible.value = true }
 
-// 批量切换AI分析
-function batchToggleAI(enabled) {
-  photoItems.value.forEach(item => {
-    item.useAI = enabled
-  })
-  ElMessage.success(enabled ? '已全部启用AI分析' : '已全部禁用AI分析')
-}
+// 应用批量标签到所有图片
+function applyBatchTags() { photoItems.value.forEach(item => { batchTags.value.forEach(tag => { if(!item.tags.includes(tag)) item.tags.push(tag) }) }); batchTagDialogVisible.value = false; ElMessage.success('已添加') }
 
-// 上传所有图片
+// 批量切换所有图片的 AI 分析开关
+function batchToggleAI(val) { photoItems.value.forEach(item => item.useAI = val) }
+
+// 上传所有图片到服务器，并根据需要进入 AI 分析流程
 async function onUploadAll() {
-  if (photoItems.value.length === 0) {
-    ElMessage.warning('请先选择图片')
-    return
-  }
-
+  if (photoItems.value.length === 0) return
   uploading.value = true
-  msg.value = ''
-  msgType.value = ''
-
   const uploadResults = []
   let successCount = 0
-  let failCount = 0
-
-  // 逐个上传图片
-  for (let i = 0; i < photoItems.value.length; i++) {
-    const item = photoItems.value[i]
-    
+  for (const item of photoItems.value) {
     try {
       const token = sessionStorage.getItem('token')
       const data = new FormData()
       data.append('image', item.file)
       data.append('description', item.description)
-
-      if (item.tags.length) {
-        item.tags.forEach(tag => {
-          data.append('tags', tag)
-        })
-      }
-      
-      const res = await axios.post('/api/upload_photo/', data, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-          'Authorization': `Token ${token}`
-        }
-      })
-
-      const uploadedPhoto = res.data.photo
+      item.tags.forEach(tag => data.append('tags', tag))
+      const res = await axios.post('/api/upload_photo/', data, { headers: { 'Content-Type': 'multipart/form-data', 'Authorization': `Token ${token}` } })
       successCount++
-      
-      // 如果用户选择了使用AI分析，加入队列
-      if (item.useAI && uploadedPhoto && uploadedPhoto.id) {
-        uploadResults.push({
-          photo: uploadedPhoto,
-          useAI: true
-        })
-      }
-
-      ElMessage.success(`${item.file.name} 上传成功 (${i + 1}/${photoItems.value.length})`)
-
-    } catch (e) {
-      failCount++
-      let detail = ''
-      if (e.response && e.response.data) {
-        detail = JSON.stringify(e.response.data)
-      } else {
-        detail = e.message
-      }
-      ElMessage.error(`${item.file.name} 上传失败: ${detail}`)
-      console.error('上传失败', e, detail)
-    }
+      if (item.useAI && res.data.photo) uploadResults.push({ photo: res.data.photo, useAI: true })
+    } catch (e) { console.error('Upload failed', e) }
   }
-
   uploading.value = false
-
-  // 显示上传结果
-  if (successCount > 0) {
-    msg.value = `成功上传 ${successCount} 张图片` + (failCount > 0 ? `，失败 ${failCount} 张` : '')
-    msgType.value = failCount > 0 ? 'warning' : 'success'
-  } else {
-    msg.value = '所有图片上传失败'
-    msgType.value = 'error'
-  }
-
-  // 如果有需要AI分析的图片，开始批量处理
-  const aiItems = uploadResults.filter(r => r.useAI)
-  if (aiItems.length > 0) {
-    aiQueue.value = aiItems
-    currentAIIndex.value = 0
-    processNextAI()
-  } else {
-    // 没有AI分析需求，直接重置
-    resetForm()
-  }
+  ElMessage.success(`上传完成：${successCount} 张`)
+  if (uploadResults.length > 0) { aiQueue.value = uploadResults; currentAIIndex.value = 0; processNextAI() } else { resetForm() }
 }
 
-// 处理下一个AI分析
+// 处理下一个需要 AI 分析的图片
 async function processNextAI() {
-  if (currentAIIndex.value >= aiQueue.value.length) {
-    // 所有AI分析完成
-    ElMessage.success('所有图片处理完成！')
-    resetForm()
-    return
-  }
-
+  if (currentAIIndex.value >= aiQueue.value.length) { ElMessage.success('AI分析完成'); resetForm(); return }
   const item = aiQueue.value[currentAIIndex.value]
-  await triggerAiAnalysis(item.photo)
+  triggerAiAnalysis(item.photo)
 }
 
-// 触发 AI 分析
+// 向后端请求 AI 分析图片标签
 async function triggerAiAnalysis(photo) {
-  currentPhoto.value = photo
-  aiDialogVisible.value = true
-  aiLoading.value = true
-  
-  finalTagSelection.value = [...photo.tags]
-  suggestedTags.value = []
-
+  currentPhoto.value = photo; aiDialogVisible.value = true; aiLoading.value = true; finalTagSelection.value = [...photo.tags]; suggestedTags.value = []
   try {
     const token = sessionStorage.getItem('token')
-    const res = await axios.post(`/api/photos/${photo.id}/analyze-tags/`, {}, {
-      headers: { Authorization: `Token ${token}` }
-    })
-    
+    const res = await axios.post(`/api/photos/${photo.id}/analyze-tags/`, {}, { headers: { Authorization: `Token ${token}` } })
     suggestedTags.value = res.data.suggested_tags || []
-    
-    if (suggestedTags.value.length > 0) {
-      ElMessage.success('AI分析完成')
-      const allTags = new Set([...finalTagSelection.value, ...suggestedTags.value])
-      finalTagSelection.value = Array.from(allTags)
-    } else {
-      ElMessage.info('AI未分析出任何标签，您可以手动添加。')
-    }
-
-  } catch (e) {
-    ElMessage.error(e.response?.data?.error || 'AI分析失败')
-  } finally {
-    aiLoading.value = false
-  }
+  } catch (e) { ElMessage.warning('AI问题') } finally { aiLoading.value = false }
 }
 
-// 处理 AI 弹窗确认
+// 确认 AI 分析标签并保存
 async function handleAiDialogConfirm() {
-  if (!currentPhoto.value) return
   const token = sessionStorage.getItem('token')
   try {
-    await axios.post('/api/update_photo_tags/', {
-      photo_id: currentPhoto.value.id,
-      tags: finalTagSelection.value
-    }, {
-      headers: { Authorization: `Token ${token}` }
-    })
-    ElMessage.success('标签已更新')
-    
-    // 继续下一个
-    currentAIIndex.value++
-    aiDialogVisible.value = false
-    
-    // 短暂延迟后处理下一个
-    setTimeout(() => {
-      processNextAI()
-    }, 300)
-    
-  } catch (e) {
-    ElMessage.error(e.response?.data?.error || '标签更新失败')
-  }
+    await axios.post('/api/update_photo_tags/', { photo_id: currentPhoto.value.id, tags: finalTagSelection.value }, { headers: { Authorization: `Token ${token}` } })
+    currentAIIndex.value++; aiDialogVisible.value = false; setTimeout(processNextAI, 300)
+  } catch(e) { ElMessage.error('更新失败') }
 }
 
-// 跳过当前AI分析
-function skipCurrentAI() {
-  currentAIIndex.value++
-  aiDialogVisible.value = false
-  
-  setTimeout(() => {
-    processNextAI()
-  }, 300)
-}
+// 跳过当前图片的 AI 分析
+function skipCurrentAI() { currentAIIndex.value++; aiDialogVisible.value = false; setTimeout(processNextAI, 300) }
 
-// 处理 AI 弹窗取消
-function handleAiDialogCancel() {
-  ElMessageBox.confirm(
-    '还有图片未完成AI分析，确定要取消吗？',
-    '提示',
-    {
-      confirmButtonText: '确定',
-      cancelButtonText: '继续分析',
-      type: 'warning',
-    }
-  ).then(() => {
-    resetForm()
-  }).catch(() => {
-    // 用户选择继续分析
-  })
-}
-
-// 重置表单
-function resetForm() {
-  msg.value = ''
-  msgType.value = ''
-  
-  // 释放所有预览URL
-  photoItems.value.forEach(item => {
-    URL.revokeObjectURL(item.previewUrl)
-  })
-  
-  photoItems.value = []
-  
-  if (formRef.value) formRef.value.resetFields()
-  if (fileInputRef.value) fileInputRef.value.value = null
-  
-  aiDialogVisible.value = false
-  aiLoading.value = false
-  aiQueue.value = []
-  currentAIIndex.value = 0
-  currentPhoto.value = null
-  suggestedTags.value = []
-  finalTagSelection.value = []
-}
-
-onMounted(() => {
-  fetchUserTags()
-})
+// 关闭 AI 分析对话框并重置表单
+function handleAiDialogCancel() { resetForm() }
 </script>
 
 <style scoped>
-.photo-upload {
-  max-width: 800px;
-  margin: 24px auto;
-  padding: 24px;
-  background: #fff;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+/* 适配深色模式 */
+.upload-container {
+  max-width: 1000px;
+  margin: 20px auto;
+  padding: 30px;
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.04);
+  transition: background 0.3s, border-color 0.3s;
+}
+.upload-container.dark {
+  background: #2c2c2c;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.4);
 }
 
-.file-hint {
-  font-size: 12px;
-  color: #909399;
-  margin-top: 4px;
+.top-bar-absolute {
+  position: absolute;
+  top: 20px;
+  right: 20px;
 }
 
-.photo-items {
-  margin: 20px 0;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 16px;
-}
+.upload-header { text-align: center; margin-bottom: 30px; }
+.upload-header h2 { margin: 0 0 8px; font-size: 1.8rem; color: #4a4a4a; }
+.dark .upload-header h2 { color: #e0e0e0; }
+.upload-header p { color: #8c7b75; font-size: 0.9rem; }
+.dark .upload-header p { color: #a0a0a0; }
 
-.photo-item {
-  padding: 16px;
+.drop-zone {
+  border: 2px dashed #dcdfe6;
+  border-radius: 12px;
+  padding: 40px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  background: #fbfdff;
 }
+.dark .drop-zone { background: #333; border-color: #555; }
+.drop-zone:hover, .drop-zone.is-dragover { border-color: #8c7b75; background: #fdfaf4; }
+.dark .drop-zone:hover { border-color: #d4b483; background: #3a3a3a; }
 
-.photo-item-header {
+.upload-icon { font-size: 48px; color: #8c7b75; margin-bottom: 16px; }
+.dark .upload-icon { color: #d4b483; }
+.upload-text span { font-size: 1.1rem; font-weight: 500; color: #606266; }
+.dark .upload-text span { color: #ccc; }
+.sub-text { font-size: 0.85rem; color: #c0c4cc; margin-top: 4px; }
+.hidden-input { display: none; }
+
+.action-bar {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 12px;
-}
-
-.photo-number {
-  font-weight: bold;
-  color: #409eff;
-}
-
-.photo-preview {
-  width: 100%;
-  height: 200px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  margin: 24px 0 16px;
+  padding: 10px;
   background: #f5f7fa;
-  border-radius: 4px;
-  overflow: hidden;
-  margin-bottom: 12px;
+  border-radius: 8px;
 }
+.dark .action-bar { background: #3a3a3a; }
+.selection-count { font-size: 0.9rem; color: #606266; margin-right: 12px; font-weight: 600; }
+.dark .selection-count { color: #ccc; }
 
-.photo-preview img {
-  max-width: 100%;
-  max-height: 100%;
-  object-fit: contain;
-}
+.theme-link-btn { color: #8c7b75 !important; font-weight: 500; }
+.theme-link-btn:hover { color: #6b5b56 !important; }
+.theme-link-btn.secondary { color: #909399 !important; }
+.dark .theme-link-btn { color: #d4b483 !important; }
 
-.photo-name {
-  font-size: 12px;
-  color: #606266;
-  margin-bottom: 12px;
-  word-break: break-all;
-}
+.photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px; }
+.photo-card { background: #fff; border: 1px solid #ebeef5; border-radius: 8px; overflow: hidden; transition: all 0.3s; }
+.dark .photo-card { background: #333; border-color: #555; }
+.photo-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08); transform: translateY(-2px); }
 
-.batch-actions {
-  display: flex;
-  gap: 8px;
-  margin: 20px 0;
-  flex-wrap: wrap;
-}
+.photo-thumb { height: 160px; position: relative; background: #f5f7fa; }
+.photo-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.photo-thumb .overlay { position: absolute; top: 8px; right: 8px; opacity: 0; transition: opacity 0.2s; }
+.photo-card:hover .overlay { opacity: 1; }
+.img-meta-badge { position: absolute; bottom: 4px; right: 4px; background: rgba(0,0,0,0.6); color: #fff; font-size: 10px; padding: 2px 6px; border-radius: 4px; }
 
-.success {
-  color: #67c23a;
-  margin-top: 10px;
-  padding: 8px;
-  background: #f0f9ff;
-  border-radius: 4px;
-}
+.photo-form { padding: 12px; }
+.tag-input-wrapper { display: flex; gap: 4px; margin-bottom: 8px; }
+.tag-select { flex: 1; }
 
-.warning {
-  color: #e6a23c;
-  margin-top: 10px;
-  padding: 8px;
-  background: #fdf6ec;
-  border-radius: 4px;
+.theme-input :deep(.el-input__wrapper),
+.theme-select :deep(.el-input__wrapper) {
+  box-shadow: 0 0 0 1px #dcdfe6;
 }
+.dark .theme-input :deep(.el-input__wrapper),
+.dark .theme-select :deep(.el-input__wrapper) {
+  background: #444; box-shadow: 0 0 0 1px #555;
+}
+.dark .theme-input :deep(.el-input__inner) { color: #eee; }
 
-.error {
-  color: #f56c6c;
-  margin-top: 10px;
-  padding: 8px;
-  background: #fef0f0;
-  border-radius: 4px;
-}
+.theme-checkbox :deep(.el-checkbox__label) { color: #606266; }
+.dark .theme-checkbox :deep(.el-checkbox__label) { color: #ccc; }
+.theme-checkbox :deep(.el-checkbox__input.is-checked .el-checkbox__inner) { background-color: #8c7b75; border-color: #8c7b75; }
+.dark .theme-checkbox :deep(.el-checkbox__input.is-checked .el-checkbox__inner) { background-color: #d4b483; border-color: #d4b483; }
+.theme-checkbox :deep(.el-checkbox__input.is-checked + .el-checkbox__label) { color: #8c7b75; }
+.dark .theme-checkbox :deep(.el-checkbox__input.is-checked + .el-checkbox__label) { color: #d4b483; }
 
-.ai-progress {
-  font-weight: bold;
-  color: #409eff;
-  margin-bottom: 16px;
-}
+.list-enter-active, .list-leave-active { transition: all 0.3s ease; }
+.list-enter-from, .list-leave-to { opacity: 0; transform: translateY(20px); }
 
-.el-checkbox-group {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-bottom: 15px;
-}
-
-.el-checkbox.is-bordered {
-  margin-left: 0;
-  margin-right: 0;
-}
+.el-button--primary:not(.is-link) { --el-button-bg-color: #8c7b75; --el-button-border-color: #8c7b75; }
+.el-button--primary:not(.is-link):hover { --el-button-bg-color: #7a6a65; --el-button-border-color: #7a6a65; }
+.dark .el-button--primary:not(.is-link) { --el-button-bg-color: #d4b483; --el-button-border-color: #d4b483; --el-button-text-color: #333; }
 </style>

@@ -6,11 +6,13 @@ const router = useRouter()
 const token = ref(sessionStorage.getItem('token'))
 const username = ref(sessionStorage.getItem('username'))
 
+// 更新 token 和用户名的状态
 const updateAuthStatus = () => {
   token.value = sessionStorage.getItem('token')
   username.value = sessionStorage.getItem('username')
 }
 
+// 注销登录，清除会话并跳转到登录页
 const logout = () => {
   sessionStorage.removeItem('token')
   sessionStorage.removeItem('username')
@@ -18,10 +20,10 @@ const logout = () => {
   router.push('/login')
 }
 
+// 组件挂载时初始化认证状态，并监听相关事件
 onMounted(() => {
   updateAuthStatus()
   window.addEventListener('storage', updateAuthStatus)
-  // Custom event to handle login/logout from other components
   window.addEventListener('auth-change', updateAuthStatus)
 })
 </script>
@@ -42,7 +44,7 @@ onMounted(() => {
             <RouterLink to="/register">注册</RouterLink>
           </template>
           <template v-else>
-            <RouterLink to="/profile">个人中心 ({{ username }})</RouterLink>
+            <RouterLink to="/profile">个人中心（{{ username }}）</RouterLink>
             <a href="#" @click.prevent="logout">退出登录</a>
           </template>
         </nav>
