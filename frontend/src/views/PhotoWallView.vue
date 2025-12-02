@@ -137,25 +137,27 @@
 
             <!-- 默认模式：功能按键组 -->
             <template v-if="!selectMode && !batchEditMode.active">
+              <!-- 移除 nowrap 和 overflow-x，恢复自动换行，去除滚动条 -->
               <div class="action-button-group">
                 <el-button type="success" @click="enterSelectMode" :disabled="photos.length === 0" class="sketch-sticker-button btn-green">轮播播放</el-button>
                 <el-button type="primary" @click="openSmartSearchDialog" class="sketch-sticker-button btn-blue">智能搜索</el-button>
                 <el-button type="warning" @click="router.push('/upload')" class="sketch-sticker-button btn-orange">上传图片</el-button>
                 <el-button type="success" @click="router.push('/tags')" class="sketch-sticker-button btn-lime">标签管理</el-button>
                 <el-button type="info" @click="enterBatchEditMode" :disabled="photos.length === 0" class="sketch-sticker-button btn-gray">批量操作</el-button>
+                
+                <!-- 紧凑布局：文字在上，按钮在下。使用 margin-left: auto 将其推到最右侧 -->
+                <div style="display: flex; flex-direction: column; align-items: flex-start; margin-left: auto; padding-left: 16px; border-left: 2px dashed var(--border-dashed);">
+                  <span class="layout-label" style="font-size: 0.9rem; margin-bottom: 4px; line-height: 1; color: var(--pencil-text);">每行显示：</span>
+                  <el-radio-group v-model="photosPerRow" size="small" class="sketch-radio-group">
+                    <el-radio-button :label="2">2张</el-radio-button>
+                    <el-radio-button :label="3">3张</el-radio-button>
+                    <el-radio-button :label="4">4张</el-radio-button>
+                    <el-radio-button :label="5">5张</el-radio-button>
+                  </el-radio-group>
+                </div>
               </div>
             </template>
 
-            <!-- 每行显示：手绘单选框 -->
-            <div class="layout-control" v-if="!selectMode && !batchEditMode.active">
-              <span class="layout-label">每行显示：</span>
-              <el-radio-group v-model="photosPerRow" size="small" class="sketch-radio-group">
-                <el-radio-button :label="2">2张</el-radio-button>
-                <el-radio-button :label="3">3张</el-radio-button>
-                <el-radio-button :label="4">4张</el-radio-button>
-                <el-radio-button :label="5">5张</el-radio-button>
-              </el-radio-group>
-            </div>
           </div>
           
           <div v-if="photos.length > 0" class="photo-grid">
@@ -527,36 +529,44 @@
       <!-- 编辑器容器，确保全屏 -->
       <div id="tui-image-editor-container"></div>
       
-      <!-- 移除原来的 Footer 插槽，将按钮移到顶部或悬浮，以保证全屏体验 -->
     </el-dialog>
 
-    <el-dialog v-model="instructionsVisible" title="图片编辑器操作指南" width="600px" class="sketch-dialog">
+    <el-dialog v-model="instructionsVisible" title="图片编辑器操作指南" width="900px" class="sketch-dialog instructions-dialog">
         <div class="instructions-content">
-            <h4>顶部工具栏 (从左到右)</h4>
-            <ul>
-                <li><b>放大 (Zoom In):</b> 先点击后，再点击图片即可放大画布视图。</li>
-                <li><b>缩小 (Zoom Out):</b> 缩小画布视图。</li>
-                <li><b>Tips:</b> 也可以通过鼠标滚轮进行缩放。</li>
-                <li><b>撤销 (Undo):</b> 撤销上一步操作。</li>
-                <li><b>重做 (Redo):</b> 重复上一步被撤销的操作。</li>
-                <li><b>重置 (Reset):</b> 清除所有编辑，恢复到初始状态。</li>
-                <li><b>删除选中对象 (Delete):</b> 删除当前选中的对象（如文本框、绘画笔迹）。</li>
-                <li><b>全部删除 (Delete All):</b> 删除所有添加的对象。</li>
-            </ul>
-            <h4>底部功能菜单</h4>
-            <ul>
-                <li><b>Crop (裁剪):</b> 提供自由裁剪和固定比例（方形、3:2、4:3、16:9等）裁剪。</li>
-                <li><b>Flip (翻转):</b> 提供水平和垂直翻转功能。</li>
-                <li><b>Rotate (旋转):</b> 提供顺时针/逆时针90度旋转和角度微调功能。</li>
-                <li><b>Filter (滤镜):</b> 应用各种预设滤镜，如灰度、棕褐色调、反色、亮度调整等。</li>
-                <li><b>Draw (绘画):</b> 在图片上进行自由绘画或画直线，可自定义颜色和笔触粗细。</li>
-                <li><b>Text (文字):</b> 在图片上添加文字，可自定义字体、颜色、大小和样式。</li>
-            </ul>
-            <h4>右上角按钮</h4>
-            <ul>
-                <li><b>Load:</b> 从你的电脑重新选择一张图片来替换当前正在编辑的图片。</li>
-                <li><b>Download:</b> 将当前编辑好的图片（画布状态）下载到你的电脑。</li>
-            </ul>
+            <div class="instructions-grid">
+                <!-- 左列：顶部工具栏 -->
+                <div class="inst-col">
+                    <h4>顶部工具栏 (从左到右)</h4>
+                    <ul>
+                        <li><b>放大 (Zoom In):</b> 先点击后，再点击图片即可放大画布视图。</li>
+                        <li><b>缩小 (Zoom Out):</b> 缩小画布视图。</li>
+                        <li><b>Tips:</b> 也可以通过鼠标滚轮进行缩放。</li>
+                        <li><b>撤销 (Undo):</b> 撤销上一步操作。</li>
+                        <li><b>重做 (Redo):</b> 重复上一步被撤销的操作。</li>
+                        <li><b>重置 (Reset):</b> 清除所有编辑，恢复到初始状态。</li>
+                        <li><b>删除选中对象 (Delete):</b> 删除当前选中的对象（如文本框、绘画笔迹）。</li>
+                        <li><b>全部删除 (Delete All):</b> 删除所有添加的对象。</li>
+                    </ul>
+                </div>
+
+                <!-- 右列：底部菜单 + 右上角 -->
+                <div class="inst-col">
+                    <h4>底部功能菜单</h4>
+                    <ul>
+                        <li><b>Crop (裁剪):</b> 提供自由裁剪和固定比例（方形、3:2、4:3、16:9等）裁剪。</li>
+                        <li><b>Flip (翻转):</b> 提供水平和垂直翻转功能。</li>
+                        <li><b>Rotate (旋转):</b> 提供顺时针/逆时针90度旋转和角度微调功能。</li>
+                        <li><b>Filter (滤镜):</b> 应用各种预设滤镜，如灰度、棕褐色调、反色、亮度调整等。</li>
+                        <li><b>Draw (绘画):</b> 在图片上进行自由绘画或画直线，可自定义颜色和笔触粗细。</li>
+                        <li><b>Text (文字):</b> 在图片上添加文字，可自定义字体、颜色、大小和样式。</li>
+                    </ul>
+                    <h4>右上角按钮</h4>
+                    <ul>
+                        <li><b>Load:</b> 从你的电脑重新选择一张图片来替换当前正在编辑的图片。</li>
+                        <li><b>Download:</b> 将当前编辑好的图片（画布状态）下载到你的电脑。</li>
+                    </ul>
+                </div>
+            </div>
         </div>
         <template #footer>
             <el-button type="primary" @click="instructionsVisible = false" class="sketch-sticker-button btn-blue">我明白了</el-button>
@@ -654,6 +664,7 @@ const router = useRouter()
 
 // --- 2. 独立的辅助逻辑 ---
 
+// 切换UI显示状态（轮播/预览时的控制栏显示隐藏）
 function toggleUI() {
   showUI.value = !showUI.value;
 }
@@ -665,26 +676,32 @@ watch([() => batchCarouselVisible.value, () => previewDialogVisible.value], ([va
   }
 });
 
+// 切换主题（明暗模式）
 function toggleTheme() {
   updateThemeAttribute()
 }
 
+// 更新主题属性到DOM
 function updateThemeAttribute() {
   const theme = isDark.value ? 'dark' : 'light';
   document.documentElement.setAttribute('data-theme', theme)
   if (isDark.value) {
     document.body.classList.add('dark-theme');
+    // 同时为 Element Plus 设置暗色类
+    document.documentElement.classList.add('dark');
   } else {
     document.body.classList.remove('dark-theme');
+    document.documentElement.classList.remove('dark');
   }
 }
 
+// 监听系统主题变化
 function handleSystemThemeChange(e) {
   isDark.value = e.matches
   updateThemeAttribute()
 }
 
-// 放大镜逻辑
+// 鼠标悬停在照片上时显示放大镜
 function onPhotoHover(e, photo) {
   const imgEl = e.currentTarget.querySelector('.photo-img')
   if (!imgEl) return
@@ -693,11 +710,13 @@ function onPhotoHover(e, photo) {
   updateLoupe(e, imgEl, photo)
 }
 
+// 鼠标离开照片时隐藏放大镜
 function onPhotoLeave() {
   loupe.value.visible = false
   loupe.value.photoId = null
 }
 
+// 鼠标在照片上移动时更新放大镜位置
 function onPhotoMove(e, photo) {
   if (!loupe.value.visible) return
   const container = e.currentTarget
@@ -706,6 +725,7 @@ function onPhotoMove(e, photo) {
   updateLoupe(e, imgEl, photo)
 }
 
+// 更新放大镜的位置和背景
 function updateLoupe(e, imgEl, photo) {
   const containerRect = e.currentTarget.getBoundingClientRect()
   const imgRect = imgEl.getBoundingClientRect()
@@ -724,11 +744,13 @@ function updateLoupe(e, imgEl, photo) {
   }
 }
 
-// 搜索逻辑
+// 打开智能搜索对话框
 function openSmartSearchDialog() {
   smartSearchDialogVisible.value = true
   smartSearchInput.value = ''
 }
+
+// 提交智能搜索请求
 async function submitSmartSearch() {
   if (!smartSearchInput.value.trim()) return
   smartSearchLoading.value = true
@@ -751,16 +773,20 @@ async function submitSmartSearch() {
   }
 }
 
-// 轮播控制逻辑
+// 转播对话框打开时的回调
 function onCarouselDialogOpened() {
   batchCarouselRendered.value = true;
 }
+
+// 轮播对话框关闭时的回调
 function onCarouselDialogClosed() {
   batchCarouselRendered.value = false;
   stopCarouselAutoplay();
 }
 
-let carouselAutoplayTimer = null 
+let carouselAutoplayTimer = null
+
+// 启动轮播自动播放
 function startCarouselAutoplay() {
   stopCarouselAutoplay()
   if (carouselAutoplay.value && batchCarouselVisible.value && batchCarouselRef.value) {
@@ -771,12 +797,16 @@ function startCarouselAutoplay() {
     }, carouselInterval.value * 1000)
   }
 }
+
+// 停止轮播自动播放
 function stopCarouselAutoplay() {
   if (carouselAutoplayTimer) {
     clearInterval(carouselAutoplayTimer)
     carouselAutoplayTimer = null
   }
 }
+
+// 应用轮播切换间隔设置
 function applyCarouselInterval() {
   carouselInterval.value = carouselIntervalTemp.value
   ElMessage.success(`已设置切换间隔为 ${carouselIntervalTemp.value} 秒`)
@@ -793,6 +823,8 @@ watch([carouselAutoplay, carouselInterval], () => {
     stopCarouselAutoplay()
   }
 })
+
+// 处理轮播中的鼠标滚轮事件
 function handleBatchCarouselWheel(e) {
   if (!batchCarouselVisible.value || !batchCarouselRef.value) return
   if (e.deltaY > 0) batchCarouselRef.value.next()
@@ -805,6 +837,8 @@ let touchStartY = 0
 let touchEndX = 0
 let touchEndY = 0
 let isSwiping = false
+
+// 轮播触摸开始事件
 function handleTouchStart(e) {
   if (!batchCarouselVisible.value) return
   touchStartX = e.touches[0].clientX
@@ -813,6 +847,8 @@ function handleTouchStart(e) {
   touchEndY = touchStartY
   isSwiping = false
 }
+
+// 轮播触摸移动事件
 function handleTouchMove(e) {
   if (!batchCarouselVisible.value) return
   touchEndX = e.touches[0].clientX
@@ -824,6 +860,8 @@ function handleTouchMove(e) {
     e.preventDefault() 
   }
 }
+
+// 轮播触摸结束事件
 function handleTouchEnd(e) {
   if (!batchCarouselVisible.value || !batchCarouselRef.value) return
   const deltaX = touchEndX - touchStartX
@@ -836,21 +874,27 @@ function handleTouchEnd(e) {
   touchStartX = 0; touchStartY = 0; touchEndX = 0; touchEndY = 0; isSwiping = false
 }
 
-// 选择模式逻辑
+// 进入选择模式（用于轮播播放）
 const selectMode = ref(false)
 function enterSelectMode() {
   selectMode.value = true
   selectedPhotoIds.value = []
 }
+
+// 退出选择模式
 function exitSelectMode() {
   selectMode.value = false
   selectedPhotoIds.value = []
 }
+
+// 切换照片选中状态
 function toggleSelectPhoto(id) {
   const idx = selectedPhotoIds.value.indexOf(id)
   if (idx === -1) selectedPhotoIds.value.push(id)
   else selectedPhotoIds.value.splice(idx, 1)
 }
+
+// 确认选择并开始轮播
 function confirmBatchSelect() {
   batchCarouselPhotos.value = photos.value.filter(p => selectedPhotoIds.value.includes(p.id))
   if (batchCarouselPhotos.value.length === 0) {
@@ -863,22 +907,26 @@ function confirmBatchSelect() {
   selectMode.value = false
 }
 
-// 批量编辑逻辑
+// 进入批量编辑模式
 function enterBatchEditMode() {
   batchEditMode.value.active = true
   batchSelectedPhotoIds.value = []
 }
+
+// 退出批量编辑模式
 function exitBatchEditMode() {
   batchEditMode.value.active = false
   batchSelectedPhotoIds.value = []
 }
+
+// 切换批量编辑中的照片选中状态
 function toggleBatchSelectPhoto(id) {
   const idx = batchSelectedPhotoIds.value.indexOf(id)
   if (idx === -1) batchSelectedPhotoIds.value.push(id)
   else batchSelectedPhotoIds.value.splice(idx, 1)
 }
 
-// 点击图片主入口
+// 点击照片处理（根据当前模式决定行为）
 function handlePhotoClick(photo, idx) {
   if (selectMode.value) {
     toggleSelectPhoto(photo.id)
@@ -889,7 +937,7 @@ function handlePhotoClick(photo, idx) {
   }
 }
 
-// 批量编辑弹窗
+// 打开批量编辑标签对话框
 function openBatchEditTagsDialog() {
   if (batchSelectedPhotoIds.value.length === 0) {
     ElMessage.warning('请先选择要编辑的图片')
@@ -899,6 +947,8 @@ function openBatchEditTagsDialog() {
   batchEditMode.value.tags = []
   batchEditTagsDialogVisible.value = true
 }
+
+// 为批量编辑创建新标签
 async function createNewTagForBatchEdit() {
   try {
     const { value } = await ElMessageBox.prompt('请输入新的标签名', '新建标签', {
@@ -915,6 +965,8 @@ async function createNewTagForBatchEdit() {
     if (error !== 'cancel') ElMessage.error(error.response?.data?.error || '创建失败')
   }
 }
+
+// 确认批量编辑标签
 async function confirmBatchEditTags() {
   if (batchSelectedPhotoIds.value.length === 0) {
     ElMessage.warning('请先选择要编辑的图片')
@@ -948,6 +1000,7 @@ async function confirmBatchEditTags() {
   }
 }
 
+// 批量删除选中的照片
 async function batchDelete() {
   if (batchSelectedPhotoIds.value.length === 0) {
     ElMessage.warning('请先选择要删除的图片')
@@ -1090,7 +1143,7 @@ function handleWheel(e) {
   if (e.deltaY < 0) showPrev();
 }
 
-// 触摸滑动相关逻辑
+// 预览触摸开始事件
 let previewTouchStartX = 0; let previewTouchStartY = 0; let previewTouchEndX = 0; let previewTouchEndY = 0; let previewIsSwiping = false
 function onTouchStart(e) {
   if (!previewDialogVisible.value) return
@@ -1098,12 +1151,16 @@ function onTouchStart(e) {
   previewTouchEndX = previewTouchStartX; previewTouchEndY = previewTouchStartY
   previewIsSwiping = false
 }
+
+// 预览触摸移动事件
 function onTouchMove(e) {
   if (!previewDialogVisible.value) return
   previewTouchEndX = e.touches[0].clientX; previewTouchEndY = e.touches[0].clientY
   const deltaX = previewTouchEndX - previewTouchStartX; const deltaY = previewTouchEndY - previewTouchStartY
   if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 10) { previewIsSwiping = true; e.preventDefault() }
 }
+
+// 预览触摸结束事件
 function onTouchEnd(e) {
   if (!previewDialogVisible.value) return
   const deltaX = previewTouchEndX - previewTouchStartX; const deltaY = previewTouchEndY - previewTouchStartY
@@ -1136,16 +1193,43 @@ async function openImageEditor(photo) {
   if (imageEditorInstance.value) { imageEditorInstance.value.destroy(); imageEditorInstance.value = null }
   const container = document.querySelector('#tui-image-editor-container');
   try {
+    // 获取图片原始尺寸
+    const img = new Image();
+    img.src = fixedUrl;
+    await new Promise((resolve) => {
+      img.onload = resolve;
+      img.onerror = resolve;
+    });
+    
+    // 更严格的尺寸限制，确保完全在视野内且无滚动条
+    const availableHeight = window.innerHeight - 250; 
+    // 左右边距 buffer 100px
+    const availableWidth = window.innerWidth - 100; 
+    
+    // 计算缩放比例
+    const scaleW = availableWidth / img.width;
+    const scaleH = availableHeight / img.height;
+    // 保持 <= 1，不放大
+    const scale = Math.min(scaleW, scaleH, 1); 
+    
+    const canvasWidth = Math.floor(img.width * scale);
+    const canvasHeight = Math.floor(img.height * scale);
+    
     imageEditorInstance.value = new ImageEditor(container, {
       includeUI: {
         loadImage: { path: fixedUrl, name: photo.description || 'image' },
         menu: ['crop', 'flip', 'rotate', 'filter', 'draw', 'text'],
         initMenu: 'filter',
-        // 移除 uiSize 强制设定，让 CSS 控制
+        uiSize: {
+          width: `${canvasWidth}px`,
+          height: `${canvasHeight}px`,
+        },
         menuBarPosition: 'bottom',
       },
-      cssMaxWidth: null, cssMaxHeight: null, usageStatistics: false,
+      cssMaxWidth: canvasWidth,
+      cssMaxHeight: canvasHeight,
       selectionStyle: { cornerSize: 20, rotatingPointOffset: 70, },
+      usageStatistics: false,
     });
   } catch (error) {
     console.error('编辑器错误:', error);
@@ -1437,6 +1521,63 @@ body.dark-theme {
   --border-color: #444;
 }
 
+/* --- Global Dark Mode Fixes for Teleported Elements (所有弹窗强制暗色) --- */
+body.dark-theme .el-message-box,
+body.dark-theme .el-popover,
+body.dark-theme .el-picker-panel,
+body.dark-theme .el-select-dropdown,
+body.dark-theme .el-dialog {
+  background-color: #2c2c2c !important;
+  border-color: #444 !important;
+}
+
+/* 标题和内容文字 */
+body.dark-theme .el-message-box__title,
+body.dark-theme .el-message-box__content,
+body.dark-theme .el-popover__title,
+body.dark-theme .el-picker-panel__icon-btn,
+body.dark-theme .el-date-picker__header-label,
+body.dark-theme .el-dialog__title,
+body.dark-theme .el-dialog__body {
+  color: #e0e0e0 !important;
+}
+
+/* 下拉菜单和日期选择器里的文字 */
+body.dark-theme .el-select-dropdown__item,
+body.dark-theme .el-date-table th,
+body.dark-theme .el-date-table td.available,
+body.dark-theme .el-picker-panel__content,
+body.dark-theme .el-month-table td .cell,
+body.dark-theme .el-year-table td .cell {
+  color: #e0e0e0 !important;
+}
+
+/* 悬停高亮背景 */
+body.dark-theme .el-select-dropdown__item.hover,
+body.dark-theme .el-select-dropdown__item:hover,
+body.dark-theme .el-date-table td.available:hover {
+  background-color: #3a3a3a !important;
+}
+
+/* 弹窗内的输入框背景 */
+body.dark-theme .el-message-box .el-input__wrapper,
+body.dark-theme .el-message-box .el-textarea__inner {
+  background-color: #1a1a1a !important;
+  box-shadow: 0 0 0 1px #444 inset !important;
+  color: #e0e0e0 !important;
+}
+
+/* 关闭按钮颜色 */
+body.dark-theme .el-message-box__headerbtn .el-message-box__close,
+body.dark-theme .el-dialog__headerbtn .el-dialog__close {
+  color: #a0a0a0 !important;
+}
+body.dark-theme .el-message-box__headerbtn:hover .el-message-box__close,
+body.dark-theme .el-dialog__headerbtn:hover .el-dialog__close {
+  color: #fff !important;
+}
+
+
 /* 全局过渡动画 */
 body, .sketchbook-wrapper, .sketchbook-container, .sketchbook-page, 
 .photo-card, .photo-info, .sketch-button, .el-dialog, .el-input__wrapper {
@@ -1455,6 +1596,9 @@ body, .sketchbook-wrapper, .sketchbook-container, .sketchbook-page,
   font-size: 2.5rem;
   color: var(--pencil-text);
 }
+[data-theme='dark'] .sketch-dialog .el-dialog__title {
+  color: #e0e0e0 !important;
+}
 /* 强制覆盖普通弹窗 Body 背景和文字颜色 */
 .sketch-dialog:not(.carousel-fullscreen-dialog):not(.editor-dialog) .el-dialog__body {
   background: repeating-linear-gradient(
@@ -1464,6 +1608,14 @@ body, .sketchbook-wrapper, .sketchbook-container, .sketchbook-page,
   ) !important;
   color: var(--pencil-text) !important;
 }
+[data-theme='dark'] .sketch-dialog:not(.carousel-fullscreen-dialog):not(.editor-dialog) .el-dialog__body {
+  background: repeating-linear-gradient(
+    #2c2c2c, 
+    #2c2c2c 23px, 
+    #3a3a3a 24px
+  ) !important;
+  color: #e0e0e0 !important;
+}
 
 /* 专门修复 info-list 的文字颜色 */
 .photo-info-list ul {
@@ -1472,6 +1624,35 @@ body, .sketchbook-wrapper, .sketchbook-container, .sketchbook-page,
   font-family: var(--handwriting-font);
   font-size: 1.4rem;
   color: var(--pencil-text) !important; /* 强制使用变量颜色 */
+}
+
+[data-theme='dark'] .photo-info-list ul {
+  color: #e0e0e0 !important;
+}
+
+/* 暗色主题下弹窗内的输入框和选择器 */
+[data-theme='dark'] .sketch-dialog .el-input__wrapper {
+  background-color: #2c2c2c !important;
+  box-shadow: 0 0 0 1px #555 inset !important;
+}
+[data-theme='dark'] .sketch-dialog .el-input__inner {
+  color: #e0e0e0 !important;
+}
+[data-theme='dark'] .sketch-dialog .el-textarea__inner {
+  background-color: #2c2c2c !important;
+  color: #e0e0e0 !important;
+  border-color: #555 !important;
+}
+[data-theme='dark'] .sketch-dialog .el-select {
+  --el-select-input-focus-border-color: #409eff;
+}
+[data-theme='dark'] .sketch-dialog .el-tag {
+  background-color: #3a3a3a !important;
+  color: #e0e0e0 !important;
+  border-color: #555 !important;
+}
+[data-theme='dark'] .sketch-dialog .el-form-item__label {
+  color: #c0c0c0 !important;
 }
 .photo-info-list li {
   margin-bottom: 12px;
@@ -1905,8 +2086,30 @@ body, .sketchbook-wrapper, .sketchbook-container, .sketchbook-page,
   height: 100%;
   width: 100%;
 }
-</style>
 
+.instructions-dialog {
+  max-width: 95vw;
+}
+.instructions-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 32px;
+}
+@media (max-width: 768px) {
+  .instructions-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.instructions-content h4 { margin-top: 16px; margin-bottom: 8px; padding-bottom: 4px; border-bottom: 1px solid var(--border-color); color: var(--pencil-text); }
+/* 移除列表第一列的标题顶部margin，以对齐 */
+.inst-col h4:first-child { margin-top: 0; }
+.instructions-content ul { padding-left: 20px; list-style-type: disc; color: var(--pencil-text); }
+.instructions-content li { margin-bottom: 8px; }
+[data-theme='dark'] .instructions-content h4 { color: #e0e0e0; border-bottom-color: #555; }
+[data-theme='dark'] .instructions-content ul { color: #c0c0c0; }
+[data-theme='dark'] .instructions-content li { color: #c0c0c0; }
+[data-theme='dark'] .instructions-content b { color: #fff; }
+</style>
 
 <style scoped>
 .page-header-row {
@@ -1987,9 +2190,10 @@ body, .sketchbook-wrapper, .sketchbook-container, .sketchbook-page,
 .photo-meta { font-family: var(--handwriting-font); font-size: 1.1rem; color: #777; }
 .photo-actions { margin-top: 12px; text-align: right; display: flex; gap: 4px; justify-content: flex-end; flex-wrap: wrap; }
 .photo-actions .el-button { font-family: var(--handwriting-font); font-size: 1.1rem; font-weight: 700; color: #666; padding: 4px 8px; }
-[data-theme='dark'] .photo-meta { color: #999; }
-[data-theme='dark'] .photo-actions .el-button { color: #999; }
+[data-theme='dark'] .photo-meta { color: #bbb; }
+[data-theme='dark'] .photo-actions .el-button { color: #ddd; font-weight: 600; }
 .photo-actions .el-button:hover { color: #007aff; background: rgba(0, 122, 255, 0.05); }
+[data-theme='dark'] .photo-actions .el-button:hover { color: #409eff; background: rgba(64, 158, 255, 0.15); }
 .photo-select-check, .photo-batch-check {
   position: absolute; left: 10px; top: 10px; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; z-index: 3; cursor: pointer; border: 2px solid #fff; transition: all 0.3s;
 }
@@ -2005,9 +2209,4 @@ body, .sketchbook-wrapper, .sketchbook-container, .sketchbook-page,
 .photo-info-list ul { padding-left: 0; list-style: none; font-family: var(--handwriting-font); font-size: 1.4rem; color: var(--pencil-text); }
 .photo-info-list li { margin-bottom: 12px; line-height: 1.4; }
 .dialog-footer { display: flex; justify-content: space-between; align-items: center; width: 100%; }
-.instructions-content h4 { margin-top: 16px; margin-bottom: 8px; padding-bottom: 4px; border-bottom: 1px solid var(--border-color); color: var(--pencil-text); }
-.instructions-content ul { padding-left: 20px; list-style-type: disc; color: var(--pencil-text); }
-.instructions-content li { margin-bottom: 8px; }
-.layout-control { margin-left: auto; display: flex; align-items: center; gap: 8px; }
-.layout-label { font-family: var(--handwriting-font); font-size: 1.3rem; color: var(--pencil-text); }
 </style>

@@ -127,6 +127,9 @@ const onSubmit = () => {
         if (data.username) sessionStorage.setItem('username', data.username)
         if (data.email) sessionStorage.setItem('email', data.email)
         
+        // 触发全局事件，更新 App.vue 导航栏
+        window.dispatchEvent(new Event('auth-change'))
+        
         ElMessage.success('登录成功')
         setTimeout(() => router.push('/profile'), 500)
       } catch (e) {

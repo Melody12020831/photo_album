@@ -1,5 +1,5 @@
 <template>
-  <div class="page-container">
+  <div class="page-container" :class="{ 'dark': isDark }">
     <div class="top-bar">
       <el-switch
         v-model="isDark"
@@ -191,17 +191,30 @@ async function onDeleteTag(row) {
   transition: all 0.3s;
   color: var(--text-color);
 }
-:global(.dark) .page-container {
+.page-container.dark {
   --bg-color: #1a1a1a;
   --text-color: #e0e0e0;
   --card-bg: #2c2c2c;
   --accent-color: #d4b483;
   --border-color: #444;
   --tag-bg: #3a3a3a;
-  --tag-text: #ccc;
+  --tag-text: #ddd;
 }
 
-.top-bar { position: absolute; top: 20px; right: 20px; z-index: 20; }
+.top-bar { 
+  position: fixed; 
+  top: 80px; 
+  right: 30px; 
+  z-index: 1000;
+  background: var(--card-bg);
+  padding: 8px 12px;
+  border-radius: 24px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+  border: 1px solid var(--border-color);
+}
+.page-container.dark .top-bar {
+  box-shadow: 0 2px 12px rgba(0,0,0,0.3);
+}
 
 .content-card {
   width: 100%;
@@ -212,7 +225,7 @@ async function onDeleteTag(row) {
   box-shadow: 0 4px 24px rgba(0,0,0,0.03);
   border: 1px solid rgba(0,0,0,0.03);
 }
-:global(.dark) .content-card {
+.page-container.dark .content-card {
   box-shadow: 0 4px 24px rgba(0,0,0,0.3);
   border: 1px solid rgba(255,255,255,0.05);
 }
@@ -244,8 +257,21 @@ async function onDeleteTag(row) {
   background-color: var(--accent-color) !important;
   color: #fff !important;
   border: none !important;
+  box-shadow: none !important;
 }
-:global(.dark) .sketch-btn-append { color: #222 !important; }
+.sketch-btn-append:hover {
+  opacity: 0.85;
+}
+.page-container.dark .sketch-btn-append { 
+  color: #222 !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+.page-container.dark .sketch-input :deep(.el-input-group__append) {
+  background-color: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
 
 /* 标签样式统一：像贴纸/便签 */
 .sketch-tag {
@@ -267,7 +293,7 @@ async function onDeleteTag(row) {
   --el-table-border-color: var(--border-color);
   --el-table-row-hover-bg-color: rgba(0,0,0,0.02);
 }
-:global(.dark) .sketch-table {
+.page-container.dark .sketch-table {
   --el-table-row-hover-bg-color: rgba(255,255,255,0.05);
 }
 
@@ -290,4 +316,25 @@ async function onDeleteTag(row) {
 .icon-btn { font-size: 1.1rem; padding: 4px; }
 .icon-btn.success { color: #67c23a; }
 .icon-btn.danger { color: #f56c6c; }
+
+/* 暗色主题下的额外优化 */
+.page-container.dark .sketch-input :deep(.el-input__wrapper) {
+  background-color: #2c2c2c;
+  border-color: #555;
+}
+.page-container.dark .sketch-input :deep(.el-input__inner) {
+  color: #e0e0e0;
+}
+.page-container.dark .edit-input :deep(.el-input__wrapper) {
+  border-bottom-color: #555;
+}
+.page-container.dark .edit-input :deep(.el-input__inner) {
+  color: #e0e0e0;
+}
+.page-container.dark .icon-btn.success {
+  color: #85ce61;
+}
+.page-container.dark .icon-btn.danger {
+  color: #f78989;
+}
 </style>
