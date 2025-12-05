@@ -42,7 +42,7 @@
             <el-select v-model="searchTags" multiple filterable placeholder="选择“铅笔”标签" style="width: 100%;" > <el-option v-for="tag in allUserTags" :key="tag" :label="tag" :value="tag" /> </el-select>
           </el-form-item>
           <el-form-item label="描述关键词">
-            <el-input v-model="searchDescription" placeholder="如：海边的日落" style="width: 100%;" />
+            <el-input v-model="searchDescription" placeholder="如：日落(指上传时对照片的描述)" style="width: 100%;" />
           </el-form-item>
           <el-form-item label="上传日期范围">
             <el-date-picker
