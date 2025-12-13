@@ -640,6 +640,8 @@ const showUI = ref(true);
 
 // 表单与搜索
 const editLoading = ref(false);
+const batchEditLoading = ref(false);
+const tagLoading = ref(false);
 const editForm = ref({ description: '', tags: [] });
 const allUserTags = ref([]);
 const searchTags = ref([])
@@ -659,7 +661,6 @@ const smartSearchLoading = ref(false)
 // 编辑器与其它
 const imageEditorInstance = ref(null);
 const isSavingImage = ref(false);
-const tagLoading = ref(false)
 const router = useRouter()
 
 // --- 2. 独立的辅助逻辑 ---
@@ -996,7 +997,11 @@ async function confirmBatchEditTags() {
     ElMessage.success(`成功修改 ${successCount} 张图片的标签`)
     exitBatchEditMode()
   } catch (error) {
-    if (error !== 'cancel') batchEditLoading.value = false
+    batchEditLoading.value = false
+    if (error !== 'cancel') {
+      console.error('批量编辑标签失败:', error)
+      ElMessage.error('批量修改失败: ' + (error.response?.data?.detail || error.message || '未知错误'))
+    }
   }
 }
 
@@ -1014,16 +1019,25 @@ async function batchDelete() {
     let successCount = 0
     for (const photoId of batchSelectedPhotoIds.value) {
       try {
-        await deletePhoto(photoId)
+        await deletePhoto(photoId, token)
         successCount++
-      } catch (error) {}
+      } catch (error) {
+        console.error(`删除图片 ${photoId} 失败:`, error)
+      }
     }
     if (successCount > 0) {
       ElMessage.success(`成功删除 ${successCount} 张图片`)
       fetchPhotos()
+    } else {
+      ElMessage.error('删除失败')
     }
     exitBatchEditMode()
-  } catch (error) {}
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('批量删除失败:', error)
+      ElMessage.error('批量删除失败')
+    }
+  }
 }
 
 

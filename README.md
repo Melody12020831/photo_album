@@ -1,40 +1,43 @@
 # 照片相册系统 - 部署指南
 
-## 📋 系统简介
+## 系统简介
 
 这是一个基于 Django + Vue.js 的智能照片管理系统，具有以下功能：
-- 📸 照片上传和管理
-- 🤖 AI智能分析和标签
-- 🔍 多维度搜索和筛选
-- 🎯 照片轮播和批量操作
-- 📊 EXIF信息提取
+- 照片上传和管理
+- AI智能分析和标签
+- 多维度搜索和筛选
+- 照片轮播和批量操作
+- EXIF信息提取
 
 ---
 
-## 🚀 快速开始
+## 快速开始
 
 ### 前置要求
 
 1. **安装 Docker 和 Docker Compose**
-   - Windows: [Docker Desktop](https://www.docker.com/products/docker-desktop)
-   - Mac: [Docker Desktop](https://www.docker.com/products/docker-desktop)
-   - Linux: 
-     ```bash
-     curl -fsSL https://get.docker.com -o get-docker.sh
-     sudo sh get-docker.sh
-     ```
+
+- Windows: [Docker Desktop](https://www.docker.com/products/docker-desktop)
+- Mac: [Docker Desktop](https://www.docker.com/products/docker-desktop)
+- Linux: 
+
+```bash
+curl -fsSL https://get.docker.com -o get-docker.sh
+sudo sh get-docker.sh
+```
 
 2. **获取豆包AI API密钥**（用于AI分析功能）
-   - 访问：https://console.volcengine.com/ark
-   - 注册/登录账号
-   - 进入"模型推理"→"接入管理"→"密钥管理"
-   - 创建新密钥并复制保存
+
+- 访问：https://console.volcengine.com/ark
+- 注册/登录账号
+- 进入"模型推理"→"接入管理"→"密钥管理"
+- 创建新密钥并复制保存
 
 ---
 
-## 📦 部署步骤
+## 部署步骤
 
-### 1️⃣ 下载项目
+### 下载项目
 
 ```bash
 # 使用Git克隆（如果你有Git）
@@ -44,7 +47,7 @@ cd photo_album
 # 或者直接下载ZIP包并解压
 ```
 
-### 2️⃣ 导入镜像和数据库
+### 导入镜像和数据库
 
 ```shell
 # 导入镜像
@@ -58,7 +61,7 @@ docker exec -it photo_album_db bash
 mysql -uuser -ppassword photo_album_db < /photo_album_db.sql
 ```
 
-### 3️⃣ 启动应用
+### 启动应用
 
 在项目根目录执行：
 
@@ -75,7 +78,7 @@ docker-compose logs -f
 
 按 `Ctrl+C` 退出日志查看（不会停止容器）
 
-### 4️⃣ 初始化数据库
+### 初始化数据库
 
 等待所有容器启动后，执行数据库迁移：
 
@@ -93,7 +96,7 @@ python manage.py createsuperuser
 exit
 ```
 
-### 5️⃣ 访问应用
+### 访问应用
 
 - **前端界面**：http://localhost:5173
 - **后端API**：http://localhost:8000
@@ -101,24 +104,28 @@ exit
 
 ---
 
-## 🛠️ 常用命令
+## 常用命令
 
 ### 启动服务
+
 ```bash
 docker-compose up --build
 ```
 
 ### 停止服务
+
 ```bash
 docker-compose down
 ```
 
 ### 查看运行状态
+
 ```bash
 docker-compose ps
 ```
 
 ### 查看日志
+
 ```bash
 # 查看所有服务日志
 docker-compose logs -f
@@ -129,27 +136,31 @@ docker-compose logs -f frontend
 ```
 
 ### 重启服务
+
 ```bash
 docker-compose restart
 ```
 
 ### 重启前端
+
 ```bash
 docker-compose restart frontend
 ```
 
 ### 重新构建并启动
+
 ```bash
 docker-compose up -d --build
 ```
 
 ---
 
-## ❓ 常见问题
+## 常见问题
 
 ### Q1: 启动后无法访问前端页面？
 
 **解决方案：**
+
 1. 检查容器是否都在运行：`docker-compose ps`
 2. 查看前端日志：`docker-compose logs frontend`
 3. 确保端口5173没有被其他程序占用
@@ -158,20 +169,24 @@ docker-compose up -d --build
 ### Q2: AI分析功能报错"AI服务配置错误"？
 
 **可能原因：**
+
 1. `.env` 文件中的 `DOUBAO_API_KEY` 未设置或错误
 2. Docker没有读取到环境变量
 
 **解决方案：**
+
 1. 检查 `.env` 文件是否存在且配置正确
 2. 重启Docker容器：
-   ```bash
-   docker-compose down
-   docker-compose up -d
-   ```
+
+```bash
+docker-compose down
+docker-compose up -d
+```
 
 ### Q3: 上传的图片无法显示？
 
 **解决方案：**
+
 1. 确保 `backend/media/photos/` 目录有写入权限
 2. 检查后端日志：`docker-compose logs backend`
 3. 清除浏览器缓存
@@ -179,14 +194,16 @@ docker-compose up -d --build
 ### Q4: 数据库连接失败？
 
 **解决方案：**
+
 1. 确保MySQL容器正在运行：`docker-compose ps`
 2. 等待30秒让MySQL完全启动
 3. 检查 `.env` 文件中的数据库配置
 4. 重启所有服务：
-   ```bash
-   docker-compose down
-   docker-compose up -d
-   ```
+
+```bash
+docker-compose down
+docker-compose up -d
+```
 
 ### Q5: 端口被占用怎么办？
 
@@ -263,7 +280,7 @@ http://10.162.219.188:8000
 
 ---
 
-## 📊 API费用说明
+## API费用说明
 
 ### 豆包AI调用费用
 
@@ -271,37 +288,42 @@ http://10.162.219.188:8000
 - **计费方式**：按调用次数计费
 - **谁来付费**：使用你自己API密钥的调用，费用计入你的账户
 - **如何控制成本**：
-  1. 合理使用AI分析功能
-  2. 在豆包控制台设置月度预算
-  3. 定期检查使用统计
+
+1. 合理使用AI分析功能
+2. 在豆包控制台设置月度预算
+3. 定期检查使用统计
 
 ### 费用监控
 
 访问豆包控制台查看：
+
 - 实时调用统计
 - 费用明细
 - 设置预算告警
 
 ---
 
-## 🔒 安全建议
+## 安全建议
 
 1. **保护API密钥**
-   - ❌ 不要将 `.env` 文件提交到Git
-   - ❌ 不要在公共场合分享密钥
-   - ✅ 定期更换API密钥
+
+- ❌ 不要将 `.env` 文件提交到Git
+- ❌ 不要在公共场合分享密钥
+- ✅ 定期更换API密钥
 
 2. **数据库安全**
-   - 生产环境请修改默认密码
-   - 不要将数据库端口暴露到公网
+
+- 生产环境请修改默认密码
+- 不要将数据库端口暴露到公网
 
 3. **访问控制**
-   - 设置强密码
-   - 限制用户注册（如果需要）
+
+- 设置强密码
+- 限制用户注册（如果需要）
 
 ---
 
-## 🆘 获取帮助
+## 获取帮助
 
 如遇到问题，请：
 
@@ -311,9 +333,10 @@ http://10.162.219.188:8000
 
 ---
 
-## 📝 开发相关
+## 开发相关
 
 ### 目录结构
+
 ```
 photo_album/
 ├── backend/          # Django后端
@@ -329,6 +352,7 @@ photo_album/
 ```
 
 ### 技术栈
+
 - **后端**：Django 4.x + Django REST Framework
 - **前端**：Vue 3 + Element Plus + Vite
 - **数据库**：MySQL 8.0
@@ -337,7 +361,7 @@ photo_album/
 
 ---
 
-## 📄 许可证
+## 许可证
 
 本项目采用 MIT 许可证
 
