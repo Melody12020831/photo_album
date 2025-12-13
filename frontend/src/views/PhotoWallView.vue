@@ -453,7 +453,7 @@
           <ul style="padding-left: 0; list-style: none;">
             <li><b>描述：</b>{{ currentPhoto.description || '无' }}</li>
             <li><b>上传时间：</b>{{ formatDate(currentPhoto.uploaded_at) }}</li>
-            <li><b>拍摄时间：</b>{{ (currentPhoto.tags && currentPhoto.tags.length) ? formatExifDate(currentPhoto.tags[0]) : (currentPhoto.taken_at ? formatTakenAt(currentPhoto.taken_at) : (currentPhoto.exif && currentPhoto.exif['EXIF DateTimeOriginal'] ? formatExifDate(currentPhoto.exif['EXIF DateTimeOriginal']) : '无')) }}</li>
+            <li><b>拍摄时间：</b>{{ currentPhoto.taken_at ? formatTakenAt(currentPhoto.taken_at) : (currentPhoto.exif && currentPhoto.exif['EXIF DateTimeOriginal'] ? formatExifDate(currentPhoto.exif['EXIF DateTimeOriginal']) : '无') }}</li>
             <li><b>地点：</b>{{ currentPhoto.location || '无' }}</li>
             <li><b>分辨率：</b>{{ currentPhoto.resolution || '无' }}</li>
             <li><b>标签：</b>

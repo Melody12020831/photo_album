@@ -121,7 +121,7 @@ const validateConfirmPassword = (rule, value, callback) => {
 }
 
 const rules = {
-  username: [{ required: true, message: '请输入用户名', trigger: 'blur' }, { min: 2, message: '至少2位', trigger: 'blur' }],
+  username: [{ required: true, message: '请输入用户名', trigger: 'blur' }, { min: 6, message: '至少6个字符', trigger: 'blur' }, { validator: (rule, value, callback) => { if (value && value.length < 6) { callback(new Error('用户名必须至少6个字符')); } else { callback(); } }, trigger: 'blur' } ],
   email: [{ required: true, message: '请输入邮箱', trigger: 'blur' }, { type: 'email', message: '格式不正确', trigger: 'blur' }],
   password: [{ required: true, message: '请输入密码', trigger: 'blur' }, { min: 6, message: '至少6位', trigger: 'blur' }],
   confirmPassword: [{ required: true, validator: validateConfirmPassword, trigger: 'blur' }]
@@ -153,7 +153,21 @@ const onSubmit = () => {
           }
         }, 1000)
       } catch (e) {
-        error.value = e.response?.data?.detail || e.response?.data || '注册失败';
+        // 处理用户名重复等常见错误为中文
+        let err = e.response?.data;
+        if (err?.username && Array.isArray(err.username) && err.username.some(msg => msg.includes('already exists'))) {
+          error.value = '该用户名已被注册，请更换用户名';
+        } else if (err?.email && Array.isArray(err.email) && err.email.some(msg => msg.includes('already exists'))) {
+          error.value = '该邮箱已被注册，请更换邮箱';
+        } else if (err?.email && typeof err.email === 'string' && err.email.includes('already exists')) {
+          error.value = '该邮箱已被注册，请更换邮箱';
+        } else if (typeof err === 'string') {
+          error.value = err;
+        } else if (err?.detail) {
+          error.value = err.detail;
+        } else {
+          error.value = '注册失败';
+        }
         success.value = '';
       } finally {
         isLoading.value = false
